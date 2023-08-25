@@ -51,6 +51,7 @@ class LLMGenerator:
         prompt_with_empty_context = prompt.format(context='')
         prompt_tokens = model_instance.get_num_tokens([PromptMessage(content=prompt_with_empty_context)])
         max_context_token_length = model_instance.model_rules.max_tokens.max
+        max_context_token_length = max_context_token_length if max_context_token_length else 1500
         rest_tokens = max_context_token_length - prompt_tokens - max_tokens - 1
 
         context = ''
@@ -178,8 +179,8 @@ class LLMGenerator:
         return rule_config
 
     @classmethod
-    def generate_qa_document(cls, tenant_id: str, query):
-        prompt = GENERATOR_QA_PROMPT
+    def generate_qa_document(cls, tenant_id: str, query, document_language: str):
+        prompt = GENERATOR_QA_PROMPT.format(language=document_language)
 
         model_instance = ModelFactory.get_text_generation_model(
             tenant_id=tenant_id,

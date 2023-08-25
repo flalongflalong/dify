@@ -158,7 +158,8 @@ class AppModelConfig(db.Model):
         self.speech_to_text = json.dumps(model_config['speech_to_text']) \
             if model_config.get('speech_to_text') else None
         self.more_like_this = json.dumps(model_config['more_like_this'])
-        self.sensitive_word_avoidance = json.dumps(model_config['sensitive_word_avoidance'])
+        self.sensitive_word_avoidance = json.dumps(model_config['sensitive_word_avoidance']) \
+            if model_config.get('sensitive_word_avoidance') else None
         self.model = json.dumps(model_config['model'])
         self.user_input_form = json.dumps(model_config['user_input_form'])
         self.pre_prompt = model_config['pre_prompt']
@@ -420,9 +421,11 @@ class Message(db.Model):
     message = db.Column(db.JSON, nullable=False)
     message_tokens = db.Column(db.Integer, nullable=False, server_default=db.text('0'))
     message_unit_price = db.Column(db.Numeric(10, 4), nullable=False)
+    message_price_unit = db.Column(db.Numeric(10, 7), nullable=False, server_default=db.text('0.001'))
     answer = db.Column(db.Text, nullable=False)
     answer_tokens = db.Column(db.Integer, nullable=False, server_default=db.text('0'))
     answer_unit_price = db.Column(db.Numeric(10, 4), nullable=False)
+    answer_price_unit = db.Column(db.Numeric(10, 7), nullable=False, server_default=db.text('0.001'))
     provider_response_latency = db.Column(db.Float, nullable=False, server_default=db.text('0'))
     total_price = db.Column(db.Numeric(10, 7))
     currency = db.Column(db.String(255), nullable=False)
@@ -704,9 +707,11 @@ class MessageAgentThought(db.Model):
     message = db.Column(db.Text, nullable=True)
     message_token = db.Column(db.Integer, nullable=True)
     message_unit_price = db.Column(db.Numeric, nullable=True)
+    message_price_unit = db.Column(db.Numeric(10, 7), nullable=False, server_default=db.text('0.001'))
     answer = db.Column(db.Text, nullable=True)
     answer_token = db.Column(db.Integer, nullable=True)
     answer_unit_price = db.Column(db.Numeric, nullable=True)
+    answer_price_unit = db.Column(db.Numeric(10, 7), nullable=False, server_default=db.text('0.001'))
     tokens = db.Column(db.Integer, nullable=True)
     total_price = db.Column(db.Numeric, nullable=True)
     currency = db.Column(db.String, nullable=True)
