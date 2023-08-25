@@ -77,6 +77,12 @@ docker compose up -d
 
 运行后，可以在浏览器上访问 [http://localhost/install](http://localhost/install) 进入 Dify 控制台并开始初始化安装操作。
 
+
+### 重置登陆密码
+```bash
+flask reset-password --email longwwmrpay@hotmail.com --new-password=admin123 --password-confirm=admin123
+```
+
 ### Helm Chart
 
 非常感谢 @BorisPolonsky 为我们提供了一个 [Helm Chart](https://helm.sh/) 版本，可以在 Kubernetes 上部署 Dify。

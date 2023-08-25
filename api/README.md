@@ -60,3 +60,9 @@
    docker run -it -d --platform linux/amd64 -p 3000:3000 -e EDITION=SELF_HOSTED -e CONSOLE_URL=http://127.0.0.1:5000 --name web-self-hosted langgenius/dify-web:latest
    ```
    This will start a dify frontend, now you are all set, happy coding!
+
+   
+### 重置登陆密码
+```bash
+flask reset-password --email longwwmrpay@hotmail.com --new-password=admin123 --password-confirm=admin123
+```
