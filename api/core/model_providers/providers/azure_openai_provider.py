@@ -12,7 +12,7 @@ from core.helper import encrypter
 from core.model_providers.models.base import BaseProviderModel
 from core.model_providers.models.embedding.azure_openai_embedding import AzureOpenAIEmbedding, \
     AZURE_OPENAI_API_VERSION
-from core.model_providers.models.entity.model_params import ModelType, ModelKwargsRules, KwargRule
+from core.model_providers.models.entity.model_params import ModelType, ModelKwargsRules, KwargRule, ModelMode
 from core.model_providers.models.entity.provider import ModelFeature
 from core.model_providers.models.llm.azure_openai_model import AzureOpenAIModel
 from core.model_providers.providers.base import BaseModelProvider, CredentialsValidateFailedError
@@ -24,6 +24,8 @@ from models.provider import ProviderType, ProviderModel, ProviderQuotaType
 BASE_MODELS = [
     'gpt-4',
     'gpt-4-32k',
+    'gpt-4-1106-preview',
+    'gpt-4-vision-preview',
     'gpt-35-turbo',
     'gpt-35-turbo-16k',
     'text-davinci-003',
@@ -61,6 +63,10 @@ class AzureOpenAIProvider(BaseModelProvider):
                 }
 
                 credentials = json.loads(provider_model.encrypted_config)
+
+                if provider_model.model_type == ModelType.TEXT_GENERATION.value:
+                    model_dict['mode'] = self._get_text_generation_model_mode(credentials['base_model_name'])
+
                 if credentials['base_model_name'] in [
                     'gpt-4',
                     'gpt-4-32k',
@@ -77,12 +83,19 @@ class AzureOpenAIProvider(BaseModelProvider):
 
         return model_list
 
+    def _get_text_generation_model_mode(self, model_name) -> str:
+        if model_name == 'text-davinci-003':
+            return ModelMode.COMPLETION.value
+        else:
+            return ModelMode.CHAT.value
+
     def _get_fixed_model_list(self, model_type: ModelType) -> list[dict]:
         if model_type == ModelType.TEXT_GENERATION:
             models = [
                 {
                     'id': 'gpt-3.5-turbo',
                     'name': 'gpt-3.5-turbo',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
@@ -90,6 +103,7 @@ class AzureOpenAIProvider(BaseModelProvider):
                 {
                     'id': 'gpt-3.5-turbo-16k',
                     'name': 'gpt-3.5-turbo-16k',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
@@ -97,6 +111,7 @@ class AzureOpenAIProvider(BaseModelProvider):
                 {
                     'id': 'gpt-4',
                     'name': 'gpt-4',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
@@ -104,13 +119,31 @@ class AzureOpenAIProvider(BaseModelProvider):
                 {
                     'id': 'gpt-4-32k',
                     'name': 'gpt-4-32k',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
                 },
                 {
+                    'id': 'gpt-4-1106-preview',
+                    'name': 'gpt-4-1106-preview',
+                    'mode': ModelMode.CHAT.value,
+                    'features': [
+                        ModelFeature.AGENT_THOUGHT.value
+                    ]
+                },
+                {
+                    'id': 'gpt-4-vision-preview',
+                    'name': 'gpt-4-vision-preview',
+                    'mode': ModelMode.CHAT.value,
+                    'features': [
+                        ModelFeature.VISION.value
+                    ]
+                },
+                {
                     'id': 'text-davinci-003',
                     'name': 'text-davinci-003',
+                    'mode': ModelMode.COMPLETION.value,
                 }
             ]
 
@@ -156,6 +189,8 @@ class AzureOpenAIProvider(BaseModelProvider):
         base_model_max_tokens = {
             'gpt-4': 8192,
             'gpt-4-32k': 32768,
+            'gpt-4-1106-preview': 4096,
+            'gpt-4-vision-preview': 4096,
             'gpt-35-turbo': 4096,
             'gpt-35-turbo-16k': 16384,
             'text-davinci-003': 4097,
@@ -314,7 +349,7 @@ class AzureOpenAIProvider(BaseModelProvider):
 
     def should_deduct_quota(self):
         if hosted_model_providers.azure_openai \
-                and hosted_model_providers.azure_openai.quota_limit and hosted_model_providers.azure_openai.quota_limit > 0:
+                and hosted_model_providers.azure_openai.quota_limit and hosted_model_providers.azure_openai.quota_limit > -1:
             return True
 
         return False
@@ -357,6 +392,18 @@ class AzureOpenAIProvider(BaseModelProvider):
 
             self._add_provider_model(
                 model_name='gpt-4',
+                model_type=ModelType.TEXT_GENERATION,
+                provider_credentials=credentials
+            )
+
+            self._add_provider_model(
+                model_name='gpt-4-1106-preview',
+                model_type=ModelType.TEXT_GENERATION,
+                provider_credentials=credentials
+            )
+
+            self._add_provider_model(
+                model_name='gpt-4-vision-preview',
                 model_type=ModelType.TEXT_GENERATION,
                 provider_credentials=credentials
             )

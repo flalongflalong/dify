@@ -1,7 +1,7 @@
 'use client'
 
 import { useContext, useContextSelector } from 'use-context-selector'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import cn from 'classnames'
@@ -30,6 +30,7 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
   const { t } = useTranslation()
   const { notify } = useContext(ToastContext)
   const { isCurrentWorkspaceManager } = useAppContext()
+  const { push } = useRouter()
 
   const mutateApps = useContextSelector(
     AppsContext,
@@ -64,8 +65,8 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
 
   const getAppDetail = async () => {
     setDetailState({ loading: true })
-    const [err, res] = await asyncRunSafe<App>(
-      fetchAppDetail({ url: '/apps', id: app.id }) as Promise<App>,
+    const [err, res] = await asyncRunSafe(
+      fetchAppDetail({ url: '/apps', id: app.id }),
     )
     if (!err) {
       setDetailState({ loading: false, detail: res })
@@ -76,11 +77,11 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
 
   const onSaveSiteConfig = useCallback(
     async (params: ConfigParams) => {
-      const [err] = await asyncRunSafe<App>(
+      const [err] = await asyncRunSafe(
         updateAppSiteConfig({
           url: `/apps/${app.id}/site`,
           body: params,
-        }) as Promise<App>,
+        }),
       )
       if (!err) {
         notify({
@@ -103,11 +104,13 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
 
   const Operations = (props: HtmlContentProps) => {
     const onClickSettings = async (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation()
       props.onClick?.()
       e.preventDefault()
       await getAppDetail()
     }
     const onClickDelete = async (e: React.MouseEvent<HTMLDivElement>) => {
+      e.stopPropagation()
       props.onClick?.()
       e.preventDefault()
       setShowConfirmDelete(true)
@@ -133,8 +136,13 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
 
   return (
     <>
-      <Link
-        href={`/app/${app.id}/overview`}
+      <div
+        onClick={(e) => {
+          if (showSettingsModal)
+            return
+          e.preventDefault()
+          push(`/app/${app.id}/overview`)
+        }}
         className={style.listItem}
       >
         <div className={style.listItemTitle}>
@@ -186,7 +194,7 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
             onSave={onSaveSiteConfig}
           />
         )}
-      </Link>
+      </div>
     </>
   )
 }

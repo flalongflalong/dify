@@ -1,5 +1,5 @@
 const translation = {
-  title: 'Logs & Annotations',
+  title: 'Logs',
   description: 'The logs record the running status of the application, including user inputs and AI replies.',
   dateTimeFormat: 'MM/DD/YYYY hh:mm A',
   table: {
@@ -8,7 +8,7 @@ const translation = {
       endUser: 'End User',
       input: 'Input',
       output: 'Output',
-      summary: 'Summary',
+      summary: 'Title',
       messageCount: 'Message Count',
       userRate: 'User Rate',
       adminRate: 'Op. Rate',
@@ -43,6 +43,8 @@ const translation = {
       editAnnotation: 'Edit Improvement',
       annotationPlaceholder: 'Enter the expected answer that you want AI to reply, which can be used for model fine-tuning and continuous improvement of text generation quality in the future.',
     },
+    variables: 'Variables',
+    uploadImages: 'Uploaded Images',
   },
   filter: {
     period: {

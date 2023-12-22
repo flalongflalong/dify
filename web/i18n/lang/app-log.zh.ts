@@ -1,5 +1,5 @@
 const translation = {
-  title: '日志与标注',
+  title: '日志',
   description: '日志记录了应用的运行情况，包括用户的输入和 AI 的回复。',
   dateTimeFormat: 'YYYY-MM-DD HH:mm',
   table: {
@@ -8,7 +8,7 @@ const translation = {
       endUser: '用户',
       input: '输入',
       output: '输出',
-      summary: '摘要',
+      summary: '标题',
       messageCount: '消息数',
       userRate: '用户反馈',
       adminRate: '管理员反馈',
@@ -43,6 +43,8 @@ const translation = {
       editAnnotation: '编辑改进回复',
       annotationPlaceholder: '输入你希望 AI 回复的预期答案，这在今后可用于模型微调，持续改进文本生成质量。',
     },
+    variables: '变量',
+    uploadImages: '上传的图片',
   },
   filter: {
     period: {

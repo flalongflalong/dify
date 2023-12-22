@@ -51,6 +51,9 @@ class ModelProviderFactory:
         elif provider_name == 'chatglm':
             from core.model_providers.providers.chatglm_provider import ChatGLMProvider
             return ChatGLMProvider
+        elif provider_name == 'baichuan':
+            from core.model_providers.providers.baichuan_provider import BaichuanProvider
+            return BaichuanProvider
         elif provider_name == 'azure_openai':
             from core.model_providers.providers.azure_openai_provider import AzureOpenAIProvider
             return AzureOpenAIProvider
@@ -69,6 +72,12 @@ class ModelProviderFactory:
         elif provider_name == 'localai':
             from core.model_providers.providers.localai_provider import LocalAIProvider
             return LocalAIProvider
+        elif provider_name == 'cohere':
+            from core.model_providers.providers.cohere_provider import CohereProvider
+            return CohereProvider
+        elif provider_name == 'jina':
+            from core.model_providers.providers.jina_provider import JinaProvider
+            return JinaProvider
         else:
             raise NotImplementedError
 
@@ -207,6 +216,9 @@ class ModelProviderFactory:
                                 Provider.provider_type == ProviderType.SYSTEM.value,
                                 Provider.quota_type == ProviderQuotaType.TRIAL.value
                             ).first()
+
+                        if provider.quota_limit == 0:
+                            return None
 
                         return provider
 

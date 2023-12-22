@@ -1,11 +1,10 @@
 # -*- coding:utf-8 -*-
-import random
 from datetime import datetime
 from typing import List
 
 from flask import request, current_app
 from flask_login import current_user
-from core.login.login import login_required
+from libs.login import login_required
 from flask_restful import Resource, fields, marshal, marshal_with, reqparse
 from sqlalchemy import desc, asc
 from werkzeug.exceptions import NotFound, Forbidden
@@ -17,13 +16,14 @@ from controllers.console.app.error import ProviderNotInitializeError, ProviderQu
 from controllers.console.datasets.error import DocumentAlreadyFinishedError, InvalidActionError, DocumentIndexingError, \
     InvalidMetadataError, ArchivedDocumentImmutableError
 from controllers.console.setup import setup_required
-from controllers.console.wraps import account_initialization_required
+from controllers.console.wraps import account_initialization_required, cloud_edition_billing_resource_check
 from core.indexing_runner import IndexingRunner
 from core.model_providers.error import ProviderTokenNotInitError, QuotaExceededError, ModelCurrentlyNotSupportError, \
     LLMBadRequestError
 from core.model_providers.model_factory import ModelFactory
 from extensions.ext_redis import redis_client
-from libs.helper import TimestampField
+from fields.document_fields import document_with_segments_fields, document_fields, \
+    dataset_and_document_fields, document_status_fields
 from extensions.ext_database import db
 from models.dataset import DatasetProcessRule, Dataset
 from models.dataset import Document, DocumentSegment
@@ -31,64 +31,6 @@ from models.model import UploadFile
 from services.dataset_service import DocumentService, DatasetService
 from tasks.add_document_to_index_task import add_document_to_index_task
 from tasks.remove_document_from_index_task import remove_document_from_index_task
-
-dataset_fields = {
-    'id': fields.String,
-    'name': fields.String,
-    'description': fields.String,
-    'permission': fields.String,
-    'data_source_type': fields.String,
-    'indexing_technique': fields.String,
-    'created_by': fields.String,
-    'created_at': TimestampField,
-}
-
-document_fields = {
-    'id': fields.String,
-    'position': fields.Integer,
-    'data_source_type': fields.String,
-    'data_source_info': fields.Raw(attribute='data_source_info_dict'),
-    'dataset_process_rule_id': fields.String,
-    'name': fields.String,
-    'created_from': fields.String,
-    'created_by': fields.String,
-    'created_at': TimestampField,
-    'tokens': fields.Integer,
-    'indexing_status': fields.String,
-    'error': fields.String,
-    'enabled': fields.Boolean,
-    'disabled_at': TimestampField,
-    'disabled_by': fields.String,
-    'archived': fields.Boolean,
-    'display_status': fields.String,
-    'word_count': fields.Integer,
-    'hit_count': fields.Integer,
-    'doc_form': fields.String,
-}
-
-document_with_segments_fields = {
-    'id': fields.String,
-    'position': fields.Integer,
-    'data_source_type': fields.String,
-    'data_source_info': fields.Raw(attribute='data_source_info_dict'),
-    'dataset_process_rule_id': fields.String,
-    'name': fields.String,
-    'created_from': fields.String,
-    'created_by': fields.String,
-    'created_at': TimestampField,
-    'tokens': fields.Integer,
-    'indexing_status': fields.String,
-    'error': fields.String,
-    'enabled': fields.Boolean,
-    'disabled_at': TimestampField,
-    'disabled_by': fields.String,
-    'archived': fields.Boolean,
-    'display_status': fields.String,
-    'word_count': fields.Integer,
-    'hit_count': fields.Integer,
-    'completed_segments': fields.Integer,
-    'total_segments': fields.Integer
-}
 
 
 class DocumentResource(Resource):
@@ -252,6 +194,7 @@ class DatasetDocumentListApi(Resource):
     @login_required
     @account_initialization_required
     @marshal_with(documents_and_batch_fields)
+    @cloud_edition_billing_resource_check('vector_space')
     def post(self, dataset_id):
         dataset_id = str(dataset_id)
 
@@ -279,6 +222,8 @@ class DatasetDocumentListApi(Resource):
         parser.add_argument('doc_form', type=str, default='text_model', required=False, nullable=False, location='json')
         parser.add_argument('doc_language', type=str, default='English', required=False, nullable=False,
                             location='json')
+        parser.add_argument('retrieval_model', type=dict, required=False, nullable=False,
+                            location='json')
         args = parser.parse_args()
 
         if not dataset.indexing_technique and not args['indexing_technique']:
@@ -303,16 +248,12 @@ class DatasetDocumentListApi(Resource):
 
 
 class DatasetInitApi(Resource):
-    dataset_and_document_fields = {
-        'dataset': fields.Nested(dataset_fields),
-        'documents': fields.List(fields.Nested(document_fields)),
-        'batch': fields.String
-    }
 
     @setup_required
     @login_required
     @account_initialization_required
     @marshal_with(dataset_and_document_fields)
+    @cloud_edition_billing_resource_check('vector_space')
     def post(self):
         # The role of the current user in the ta table must be admin or owner
         if current_user.current_tenant.current_role not in ['admin', 'owner']:
@@ -325,6 +266,8 @@ class DatasetInitApi(Resource):
         parser.add_argument('process_rule', type=dict, required=True, nullable=True, location='json')
         parser.add_argument('doc_form', type=str, default='text_model', required=False, nullable=False, location='json')
         parser.add_argument('doc_language', type=str, default='English', required=False, nullable=False,
+                            location='json')
+        parser.add_argument('retrieval_model', type=dict, required=False, nullable=False,
                             location='json')
         args = parser.parse_args()
         if args['indexing_technique'] == 'high_quality':
@@ -504,24 +447,6 @@ class DocumentBatchIndexingEstimateApi(DocumentResource):
 
 
 class DocumentBatchIndexingStatusApi(DocumentResource):
-    document_status_fields = {
-        'id': fields.String,
-        'indexing_status': fields.String,
-        'processing_started_at': TimestampField,
-        'parsing_completed_at': TimestampField,
-        'cleaning_completed_at': TimestampField,
-        'splitting_completed_at': TimestampField,
-        'completed_at': TimestampField,
-        'paused_at': TimestampField,
-        'error': fields.String,
-        'stopped_at': TimestampField,
-        'completed_segments': fields.Integer,
-        'total_segments': fields.Integer,
-    }
-
-    document_status_fields_list = {
-        'data': fields.List(fields.Nested(document_status_fields))
-    }
 
     @setup_required
     @login_required
@@ -541,7 +466,7 @@ class DocumentBatchIndexingStatusApi(DocumentResource):
             document.total_segments = total_segments
             if document.is_paused:
                 document.indexing_status = 'paused'
-            documents_status.append(marshal(document, self.document_status_fields))
+            documents_status.append(marshal(document, document_status_fields))
         data = {
             'data': documents_status
         }
@@ -549,20 +474,6 @@ class DocumentBatchIndexingStatusApi(DocumentResource):
 
 
 class DocumentIndexingStatusApi(DocumentResource):
-    document_status_fields = {
-        'id': fields.String,
-        'indexing_status': fields.String,
-        'processing_started_at': TimestampField,
-        'parsing_completed_at': TimestampField,
-        'cleaning_completed_at': TimestampField,
-        'splitting_completed_at': TimestampField,
-        'completed_at': TimestampField,
-        'paused_at': TimestampField,
-        'error': fields.String,
-        'stopped_at': TimestampField,
-        'completed_segments': fields.Integer,
-        'total_segments': fields.Integer,
-    }
 
     @setup_required
     @login_required
@@ -586,7 +497,7 @@ class DocumentIndexingStatusApi(DocumentResource):
         document.total_segments = total_segments
         if document.is_paused:
             document.indexing_status = 'paused'
-        return marshal(document, self.document_status_fields)
+        return marshal(document, document_status_fields)
 
 
 class DocumentDetailApi(DocumentResource):
@@ -784,6 +695,7 @@ class DocumentStatusApi(DocumentResource):
     @setup_required
     @login_required
     @account_initialization_required
+    @cloud_edition_billing_resource_check('vector_space')
     def patch(self, dataset_id, document_id, action):
         dataset_id = str(dataset_id)
         document_id = str(document_id)
@@ -860,14 +772,6 @@ class DocumentStatusApi(DocumentResource):
         elif action == "un_archive":
             if not document.archived:
                 raise InvalidActionError('Document is not archived.')
-
-            # check document limit
-            if current_app.config['EDITION'] == 'CLOUD':
-                documents_count = DocumentService.get_tenant_documents_count()
-                total_count = documents_count + 1
-                tenant_document_count = int(current_app.config['TENANT_DOCUMENT_COUNT'])
-                if total_count > tenant_document_count:
-                    raise ValueError(f"All your documents have overed limit {tenant_document_count}.")
 
             document.archived = False
             document.archived_at = None
@@ -947,21 +851,6 @@ class DocumentRecoverApi(DocumentResource):
         return {'result': 'success'}, 204
 
 
-class DocumentLimitApi(DocumentResource):
-    @setup_required
-    @login_required
-    @account_initialization_required
-    def get(self):
-        """get document limit"""
-        documents_count = DocumentService.get_tenant_documents_count()
-        tenant_document_count = int(current_app.config['TENANT_DOCUMENT_COUNT'])
-
-        return {
-            'documents_count': documents_count,
-            'documents_limit': tenant_document_count
-                }, 200
-
-
 api.add_resource(GetProcessRuleApi, '/datasets/process-rule')
 api.add_resource(DatasetDocumentListApi,
                  '/datasets/<uuid:dataset_id>/documents')
@@ -987,4 +876,3 @@ api.add_resource(DocumentStatusApi,
                  '/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/status/<string:action>')
 api.add_resource(DocumentPauseApi, '/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/processing/pause')
 api.add_resource(DocumentRecoverApi, '/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/processing/resume')
-api.add_resource(DocumentLimitApi, '/datasets/limit')

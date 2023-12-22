@@ -1,21 +1,27 @@
 'use client'
-import type { FC } from 'react'
-import React, { useEffect, useState } from 'react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import cn from 'classnames'
 import copy from 'copy-to-clipboard'
+import { useParams } from 'next/navigation'
 import { HandThumbDownIcon, HandThumbUpIcon } from '@heroicons/react/24/outline'
 import { useBoolean } from 'ahooks'
 import { HashtagIcon } from '@heroicons/react/24/solid'
+import PromptLog from '@/app/components/app/chat/log'
 import { Markdown } from '@/app/components/base/markdown'
 import Loading from '@/app/components/base/loading'
 import Toast from '@/app/components/base/toast'
 import type { Feedbacktype } from '@/app/components/app/chat/type'
 import { fetchMoreLikeThis, updateFeedback } from '@/service/share'
-import { Clipboard } from '@/app/components/base/icons/src/vender/line/files'
+import { Clipboard, File02 } from '@/app/components/base/icons/src/vender/line/files'
 import { Bookmark } from '@/app/components/base/icons/src/vender/line/general'
 import { Stars02 } from '@/app/components/base/icons/src/vender/line/weather'
 import { RefreshCcw01 } from '@/app/components/base/icons/src/vender/line/arrows'
+import { fetchTextGenerationMessge } from '@/service/debug'
+import AnnotationCtrlBtn from '@/app/components/app/configuration/toolbox/annotation/annotation-ctrl-btn'
+import EditReplyModal from '@/app/components/app/annotation/edit-annotation-modal'
+
 const MAX_DEPTH = 3
 export type IGenerationItemProps = {
   className?: string
@@ -23,7 +29,9 @@ export type IGenerationItemProps = {
   onRetry: () => void
   content: string
   messageId?: string | null
+  conversationId?: string
   isLoading?: boolean
+  isResponsing?: boolean
   isInWebApp?: boolean
   moreLikeThis?: boolean
   depth?: number
@@ -35,6 +43,10 @@ export type IGenerationItemProps = {
   installedAppId?: string
   taskId?: string
   controlClearMoreLikeThis?: number
+  supportFeedback?: boolean
+  supportAnnotation?: boolean
+  appId?: string
+  varList?: { label: string; value: string | number | object }[]
 }
 
 export const SimpleBtn = ({ className, isDisabled, onClick, children }: {
@@ -64,6 +76,7 @@ const GenerationItem: FC<IGenerationItemProps> = ({
   content,
   messageId,
   isLoading,
+  isResponsing,
   moreLikeThis,
   isInWebApp = false,
   feedback,
@@ -75,22 +88,30 @@ const GenerationItem: FC<IGenerationItemProps> = ({
   installedAppId,
   taskId,
   controlClearMoreLikeThis,
+  supportFeedback,
+  supportAnnotation,
+  appId,
+  varList,
 }) => {
   const { t } = useTranslation()
+  const params = useParams()
   const isTop = depth === 1
-
+  const ref = useRef(null)
   const [completionRes, setCompletionRes] = useState('')
   const [childMessageId, setChildMessageId] = useState<string | null>(null)
   const hasChild = !!childMessageId
   const [childFeedback, setChildFeedback] = useState<Feedbacktype>({
     rating: null,
   })
+  const [promptLog, setPromptLog] = useState<{ role: string; text: string }[]>([])
 
   const handleFeedback = async (childFeedback: Feedbacktype) => {
     await updateFeedback({ url: `/messages/${childMessageId}/feedbacks`, body: { rating: childFeedback.rating } }, isInstalledApp, installedAppId)
     setChildFeedback(childFeedback)
   }
 
+  const [isShowReplyModal, setIsShowReplyModal] = useState(false)
+  const question = (varList && varList?.length > 0) ? varList?.map(({ label, value }) => `${label}:${value}`).join('&') : ''
   const [isQuerying, { setTrue: startQuerying, setFalse: stopQuerying }] = useBoolean(false)
 
   const childProps = {
@@ -150,8 +171,68 @@ const GenerationItem: FC<IGenerationItemProps> = ({
       setChildMessageId(null)
   }, [isLoading])
 
+  const handleOpenLogModal = async (setModal: Dispatch<SetStateAction<boolean>>) => {
+    const data = await fetchTextGenerationMessge({
+      appId: params.appId,
+      messageId: messageId!,
+    })
+    setPromptLog(data.message as any || [])
+    setModal(true)
+  }
+
+  const ratingContent = (
+    <>
+      {!isError && messageId && !feedback?.rating && (
+        <SimpleBtn className="!px-0">
+          <>
+            <div
+              onClick={() => {
+                onFeedback?.({
+                  rating: 'like',
+                })
+              }}
+              className='flex w-6 h-6 items-center justify-center rounded-md cursor-pointer hover:bg-gray-100'>
+              <HandThumbUpIcon width={16} height={16} />
+            </div>
+            <div
+              onClick={() => {
+                onFeedback?.({
+                  rating: 'dislike',
+                })
+              }}
+              className='flex w-6 h-6 items-center justify-center rounded-md cursor-pointer hover:bg-gray-100'>
+              <HandThumbDownIcon width={16} height={16} />
+            </div>
+          </>
+        </SimpleBtn>
+      )}
+      {!isError && messageId && feedback?.rating === 'like' && (
+        <div
+          onClick={() => {
+            onFeedback?.({
+              rating: null,
+            })
+          }}
+          className='flex w-7 h-7 items-center justify-center rounded-md cursor-pointer  !text-primary-600 border border-primary-200 bg-primary-100 hover:border-primary-300 hover:bg-primary-200'>
+          <HandThumbUpIcon width={16} height={16} />
+        </div>
+      )}
+      {!isError && messageId && feedback?.rating === 'dislike' && (
+        <div
+          onClick={() => {
+            onFeedback?.({
+              rating: null,
+            })
+          }}
+          className='flex w-7 h-7 items-center justify-center rounded-md cursor-pointer  !text-red-600 border border-red-200 bg-red-100 hover:border-red-300 hover:bg-red-200'>
+          <HandThumbDownIcon width={16} height={16} />
+        </div>
+      )}
+    </>
+  )
+
   return (
-    <div className={cn(className, isTop ? `rounded-xl border ${!isError ? 'border-gray-200 bg-white' : 'border-[#FECDCA] bg-[#FEF3F2]'} ` : 'rounded-br-xl !mt-0')}
+    <div ref={ref} className={cn(className, isTop ? `rounded-xl border ${!isError ? 'border-gray-200 bg-white' : 'border-[#FECDCA] bg-[#FEF3F2]'} ` : 'rounded-br-xl !mt-0')}
       style={isTop
         ? {
           boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)',
@@ -178,7 +259,7 @@ const GenerationItem: FC<IGenerationItemProps> = ({
                 {isError
                   ? <div className='text-gray-400 text-sm'>{t('share.generation.batchFailed.outputPlaceholder')}</div>
                   : (
-                    <Markdown content={ content } />
+                    <Markdown content={content} />
                   )}
 
               </div>
@@ -186,6 +267,26 @@ const GenerationItem: FC<IGenerationItemProps> = ({
 
             <div className='flex items-center justify-between mt-3'>
               <div className='flex items-center'>
+                {
+                  !isInWebApp && !isInstalledApp && !isResponsing && (
+                    <PromptLog
+                      log={promptLog}
+                      containerRef={ref}
+                    >
+                      {
+                        showModal => (
+                          <SimpleBtn
+                            isDisabled={isError || !messageId}
+                            className={cn(isMobile && '!px-1.5', 'space-x-1 mr-1')}
+                            onClick={() => handleOpenLogModal(showModal)}>
+                            <File02 className='w-3.5 h-3.5' />
+                            {!isMobile && <div>{t('common.operation.log')}</div>}
+                          </SimpleBtn>
+                        )
+                      }
+                    </PromptLog>
+                  )
+                }
                 <SimpleBtn
                   isDisabled={isError || !messageId}
                   className={cn(isMobile && '!px-1.5', 'space-x-1')}
@@ -223,54 +324,50 @@ const GenerationItem: FC<IGenerationItemProps> = ({
                       {!isMobile && <div>{t('share.generation.batchFailed.retry')}</div>}
                     </SimpleBtn>}
                     {!isError && messageId && <div className="mx-3 w-[1px] h-[14px] bg-gray-200"></div>}
-                    {!isError && messageId && !feedback?.rating && (
-                      <SimpleBtn className="!px-0">
-                        <>
-                          <div
-                            onClick={() => {
-                              onFeedback?.({
-                                rating: 'like',
-                              })
-                            }}
-                            className='flex w-6 h-6 items-center justify-center rounded-md cursor-pointer hover:bg-gray-100'>
-                            <HandThumbUpIcon width={16} height={16} />
-                          </div>
-                          <div
-                            onClick={() => {
-                              onFeedback?.({
-                                rating: 'dislike',
-                              })
-                            }}
-                            className='flex w-6 h-6 items-center justify-center rounded-md cursor-pointer hover:bg-gray-100'>
-                            <HandThumbDownIcon width={16} height={16} />
-                          </div>
-                        </>
-                      </SimpleBtn>
-                    )}
-                    {!isError && messageId && feedback?.rating === 'like' && (
-                      <div
-                        onClick={() => {
-                          onFeedback?.({
-                            rating: null,
-                          })
-                        }}
-                        className='flex w-7 h-7 items-center justify-center rounded-md cursor-pointer  !text-primary-600 border border-primary-200 bg-primary-100 hover:border-primary-300 hover:bg-primary-200'>
-                        <HandThumbUpIcon width={16} height={16} />
-                      </div>
-                    )}
-                    {!isError && messageId && feedback?.rating === 'dislike' && (
-                      <div
-                        onClick={() => {
-                          onFeedback?.({
-                            rating: null,
-                          })
-                        }}
-                        className='flex w-7 h-7 items-center justify-center rounded-md cursor-pointer  !text-red-600 border border-red-200 bg-red-100 hover:border-red-300 hover:bg-red-200'>
-                        <HandThumbDownIcon width={16} height={16} />
-                      </div>
-                    )}
+                    {ratingContent}
                   </>
                 )}
+
+                {supportAnnotation && (
+                  <>
+                    <div className='ml-2 mr-1 h-[14px] w-[1px] bg-gray-200'></div>
+                    <AnnotationCtrlBtn
+                      appId={appId!}
+                      messageId={messageId!}
+                      className='ml-1'
+                      query={question}
+                      answer={content}
+                      // not support cache. So can not be cached
+                      cached={false}
+                      onAdded={() => {
+
+                      }}
+                      onEdit={() => setIsShowReplyModal(true)}
+                      onRemoved={() => { }}
+                    />
+                  </>
+                )}
+
+                <EditReplyModal
+                  appId={appId!}
+                  messageId={messageId!}
+                  isShow={isShowReplyModal}
+                  onHide={() => setIsShowReplyModal(false)}
+                  query={question}
+                  answer={content}
+                  onAdded={() => { }}
+                  onEdited={() => { }}
+                  createdAt={0}
+                  onRemove={() => { }}
+                  onlyEditResponse
+                />
+
+                {supportFeedback && (
+                  <div className='ml-1'>
+                    {ratingContent}
+                  </div>
+                )
+                }
               </div>
               <div className='text-xs text-gray-500'>{content?.length} {t('common.unit.char')}</div>
             </div>

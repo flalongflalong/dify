@@ -1,10 +1,11 @@
 import json
-from json import JSONDecodeError
 
 from flask import current_app, request
 from flask_login import UserMixin
+from sqlalchemy import Float
 from sqlalchemy.dialects.postgresql import UUID
 
+from core.file.upload_file_parser import UploadFileParser
 from libs.helper import generate_string
 from extensions.ext_database import db
 from .account import Account, Tenant
@@ -88,10 +89,17 @@ class AppModelConfig(db.Model):
     more_like_this = db.Column(db.Text)
     model = db.Column(db.Text)
     user_input_form = db.Column(db.Text)
+    dataset_query_variable = db.Column(db.String(255))
     pre_prompt = db.Column(db.Text)
     agent_mode = db.Column(db.Text)
     sensitive_word_avoidance = db.Column(db.Text)
     retriever_resource = db.Column(db.Text)
+    prompt_type = db.Column(db.String(255), nullable=False, default='simple')
+    chat_prompt_config = db.Column(db.Text)
+    completion_prompt_config = db.Column(db.Text)
+    dataset_configs = db.Column(db.Text)
+    external_data_tools = db.Column(db.Text)
+    file_upload = db.Column(db.Text)
 
     @property
     def app(self):
@@ -122,13 +130,37 @@ class AppModelConfig(db.Model):
             else {"enabled": False}
 
     @property
+    def annotation_reply_dict(self) -> dict:
+        annotation_setting = db.session.query(AppAnnotationSetting).filter(
+            AppAnnotationSetting.app_id == self.app_id).first()
+        if annotation_setting:
+            collection_binding_detail = annotation_setting.collection_binding_detail
+            return {
+                "id": annotation_setting.id,
+                "enabled": True,
+                "score_threshold": annotation_setting.score_threshold,
+                "embedding_model": {
+                    "embedding_provider_name": collection_binding_detail.provider_name,
+                    "embedding_model_name": collection_binding_detail.model_name
+                }
+            }
+
+        else:
+            return {"enabled": False}
+
+    @property
     def more_like_this_dict(self) -> dict:
         return json.loads(self.more_like_this) if self.more_like_this else {"enabled": False}
 
     @property
     def sensitive_word_avoidance_dict(self) -> dict:
         return json.loads(self.sensitive_word_avoidance) if self.sensitive_word_avoidance \
-            else {"enabled": False, "words": [], "canned_response": []}
+            else {"enabled": False, "type": "", "configs": []}
+
+    @property
+    def external_data_tools_list(self) -> list[dict]:
+        return json.loads(self.external_data_tools) if self.external_data_tools \
+            else []
 
     @property
     def user_input_form_list(self) -> dict:
@@ -137,6 +169,30 @@ class AppModelConfig(db.Model):
     @property
     def agent_mode_dict(self) -> dict:
         return json.loads(self.agent_mode) if self.agent_mode else {"enabled": False, "strategy": None, "tools": []}
+
+    @property
+    def chat_prompt_config_dict(self) -> dict:
+        return json.loads(self.chat_prompt_config) if self.chat_prompt_config else {}
+
+    @property
+    def completion_prompt_config_dict(self) -> dict:
+        return json.loads(self.completion_prompt_config) if self.completion_prompt_config else {}
+
+    @property
+    def dataset_configs_dict(self) -> dict:
+        if self.dataset_configs:
+            dataset_configs = json.loads(self.dataset_configs)
+            if 'retrieval_model' not in dataset_configs:
+                return {'retrieval_model': 'single'}
+            else:
+                return dataset_configs
+        return {'retrieval_model': 'single'}
+
+    @property
+    def file_upload_dict(self) -> dict:
+        return json.loads(self.file_upload) if self.file_upload else {
+            "image": {"enabled": False, "number_limits": 3, "detail": "high",
+                      "transfer_methods": ["remote_url", "local_file"]}}
 
     def to_dict(self) -> dict:
         return {
@@ -148,12 +204,20 @@ class AppModelConfig(db.Model):
             "suggested_questions_after_answer": self.suggested_questions_after_answer_dict,
             "speech_to_text": self.speech_to_text_dict,
             "retriever_resource": self.retriever_resource_dict,
+            "annotation_reply": self.annotation_reply_dict,
             "more_like_this": self.more_like_this_dict,
             "sensitive_word_avoidance": self.sensitive_word_avoidance_dict,
+            "external_data_tools": self.external_data_tools_list,
             "model": self.model_dict,
             "user_input_form": self.user_input_form_list,
+            "dataset_query_variable": self.dataset_query_variable,
             "pre_prompt": self.pre_prompt,
-            "agent_mode": self.agent_mode_dict
+            "agent_mode": self.agent_mode_dict,
+            "prompt_type": self.prompt_type,
+            "chat_prompt_config": self.chat_prompt_config_dict,
+            "completion_prompt_config": self.completion_prompt_config_dict,
+            "dataset_configs": self.dataset_configs_dict,
+            "file_upload": self.file_upload_dict
         }
 
     def from_model_config_dict(self, model_config: dict):
@@ -168,12 +232,24 @@ class AppModelConfig(db.Model):
         self.more_like_this = json.dumps(model_config['more_like_this'])
         self.sensitive_word_avoidance = json.dumps(model_config['sensitive_word_avoidance']) \
             if model_config.get('sensitive_word_avoidance') else None
+        self.external_data_tools = json.dumps(model_config['external_data_tools']) \
+            if model_config.get('external_data_tools') else None
         self.model = json.dumps(model_config['model'])
         self.user_input_form = json.dumps(model_config['user_input_form'])
+        self.dataset_query_variable = model_config.get('dataset_query_variable')
         self.pre_prompt = model_config['pre_prompt']
         self.agent_mode = json.dumps(model_config['agent_mode'])
         self.retriever_resource = json.dumps(model_config['retriever_resource']) \
             if model_config.get('retriever_resource') else None
+        self.prompt_type = model_config.get('prompt_type', 'simple')
+        self.chat_prompt_config = json.dumps(model_config.get('chat_prompt_config')) \
+            if model_config.get('chat_prompt_config') else None
+        self.completion_prompt_config = json.dumps(model_config.get('completion_prompt_config')) \
+            if model_config.get('completion_prompt_config') else None
+        self.dataset_configs = json.dumps(model_config.get('dataset_configs')) \
+            if model_config.get('dataset_configs') else None
+        self.file_upload = json.dumps(model_config.get('file_upload')) \
+            if model_config.get('file_upload') else None
         return self
 
     def copy(self):
@@ -189,10 +265,18 @@ class AppModelConfig(db.Model):
             speech_to_text=self.speech_to_text,
             more_like_this=self.more_like_this,
             sensitive_word_avoidance=self.sensitive_word_avoidance,
+            external_data_tools=self.external_data_tools,
             model=self.model,
             user_input_form=self.user_input_form,
+            dataset_query_variable=self.dataset_query_variable,
             pre_prompt=self.pre_prompt,
-            agent_mode=self.agent_mode
+            agent_mode=self.agent_mode,
+            retriever_resource=self.retriever_resource,
+            prompt_type=self.prompt_type,
+            chat_prompt_config=self.chat_prompt_config,
+            completion_prompt_config=self.completion_prompt_config,
+            dataset_configs=self.dataset_configs,
+            file_upload=self.file_upload
         )
 
         return new_app_model_config
@@ -296,41 +380,16 @@ class Conversation(db.Model):
             override_model_configs = json.loads(self.override_model_configs)
 
             if 'model' in override_model_configs:
-                model_config['model'] = override_model_configs['model']
-                model_config['pre_prompt'] = override_model_configs['pre_prompt']
-                model_config['agent_mode'] = override_model_configs['agent_mode']
-                model_config['opening_statement'] = override_model_configs['opening_statement']
-                model_config['suggested_questions'] = override_model_configs['suggested_questions']
-                model_config['suggested_questions_after_answer'] = override_model_configs[
-                    'suggested_questions_after_answer'] \
-                    if 'suggested_questions_after_answer' in override_model_configs else {"enabled": False}
-                model_config['speech_to_text'] = override_model_configs[
-                    'speech_to_text'] \
-                    if 'speech_to_text' in override_model_configs else {"enabled": False}
-                model_config['more_like_this'] = override_model_configs['more_like_this'] \
-                    if 'more_like_this' in override_model_configs else {"enabled": False}
-                model_config['sensitive_word_avoidance'] = override_model_configs['sensitive_word_avoidance'] \
-                    if 'sensitive_word_avoidance' in override_model_configs \
-                    else {"enabled": False, "words": [], "canned_response": []}
-                model_config['user_input_form'] = override_model_configs['user_input_form']
+                app_model_config = AppModelConfig()
+                app_model_config = app_model_config.from_model_config_dict(override_model_configs)
+                model_config = app_model_config.to_dict()
             else:
                 model_config['configs'] = override_model_configs
         else:
             app_model_config = db.session.query(AppModelConfig).filter(
                 AppModelConfig.id == self.app_model_config_id).first()
 
-            model_config['configs'] = app_model_config.configs
-            model_config['model'] = app_model_config.model_dict
-            model_config['pre_prompt'] = app_model_config.pre_prompt
-            model_config['agent_mode'] = app_model_config.agent_mode_dict
-            model_config['opening_statement'] = app_model_config.opening_statement
-            model_config['suggested_questions'] = app_model_config.suggested_questions_list
-            model_config['suggested_questions_after_answer'] = app_model_config.suggested_questions_after_answer_dict
-            model_config['speech_to_text'] = app_model_config.speech_to_text_dict
-            model_config['retriever_resource'] = app_model_config.retriever_resource_dict
-            model_config['more_like_this'] = app_model_config.more_like_this_dict
-            model_config['sensitive_word_avoidance'] = app_model_config.sensitive_word_avoidance_dict
-            model_config['user_input_form'] = app_model_config.user_input_form_list
+            model_config = app_model_config.to_dict()
 
         model_config['model_id'] = self.model_id
         model_config['provider'] = self.model_provider
@@ -469,6 +528,16 @@ class Message(db.Model):
         return annotation
 
     @property
+    def annotation_hit_history(self):
+        annotation_history = (db.session.query(AppAnnotationHitHistory)
+                              .filter(AppAnnotationHitHistory.message_id == self.id).first())
+        if annotation_history:
+            annotation = (db.session.query(MessageAnnotation).
+                          filter(MessageAnnotation.id == annotation_history.annotation_id).first())
+            return annotation
+        return None
+
+    @property
     def app_model_config(self):
         conversation = db.session.query(Conversation).filter(Conversation.id == self.conversation_id).first()
         if conversation:
@@ -490,6 +559,37 @@ class Message(db.Model):
     def retriever_resources(self):
         return db.session.query(DatasetRetrieverResource).filter(DatasetRetrieverResource.message_id == self.id) \
             .order_by(DatasetRetrieverResource.position.asc()).all()
+
+    @property
+    def message_files(self):
+        return db.session.query(MessageFile).filter(MessageFile.message_id == self.id).all()
+
+    @property
+    def files(self):
+        message_files = self.message_files
+
+        files = []
+        for message_file in message_files:
+            url = message_file.url
+            if message_file.type == 'image':
+                if message_file.transfer_method == 'local_file':
+                    upload_file = (db.session.query(UploadFile)
+                                   .filter(
+                        UploadFile.id == message_file.upload_file_id
+                    ).first())
+
+                    url = UploadFileParser.get_image_data(
+                        upload_file=upload_file,
+                        force_url=True
+                    )
+
+            files.append({
+                'id': message_file.id,
+                'type': message_file.type,
+                'url': url
+            })
+
+        return files
 
 
 class MessageFeedback(db.Model):
@@ -519,6 +619,25 @@ class MessageFeedback(db.Model):
         return account
 
 
+class MessageFile(db.Model):
+    __tablename__ = 'message_files'
+    __table_args__ = (
+        db.PrimaryKeyConstraint('id', name='message_file_pkey'),
+        db.Index('message_file_message_idx', 'message_id'),
+        db.Index('message_file_created_by_idx', 'created_by')
+    )
+
+    id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
+    message_id = db.Column(UUID, nullable=False)
+    type = db.Column(db.String(255), nullable=False)
+    transfer_method = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.Text, nullable=True)
+    upload_file_id = db.Column(UUID, nullable=True)
+    created_by_role = db.Column(db.String(255), nullable=False)
+    created_by = db.Column(UUID, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
+
+
 class MessageAnnotation(db.Model):
     __tablename__ = 'message_annotations'
     __table_args__ = (
@@ -530,9 +649,11 @@ class MessageAnnotation(db.Model):
 
     id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
     app_id = db.Column(UUID, nullable=False)
-    conversation_id = db.Column(UUID, db.ForeignKey('conversations.id'), nullable=False)
-    message_id = db.Column(UUID, nullable=False)
+    conversation_id = db.Column(UUID, db.ForeignKey('conversations.id'), nullable=True)
+    message_id = db.Column(UUID, nullable=True)
+    question = db.Column(db.Text, nullable=True)
     content = db.Column(db.Text, nullable=False)
+    hit_count = db.Column(db.Integer, nullable=False, server_default=db.text('0'))
     account_id = db.Column(UUID, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
     updated_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
@@ -541,6 +662,84 @@ class MessageAnnotation(db.Model):
     def account(self):
         account = db.session.query(Account).filter(Account.id == self.account_id).first()
         return account
+
+    @property
+    def annotation_create_account(self):
+        account = db.session.query(Account).filter(Account.id == self.account_id).first()
+        return account
+
+
+class AppAnnotationHitHistory(db.Model):
+    __tablename__ = 'app_annotation_hit_histories'
+    __table_args__ = (
+        db.PrimaryKeyConstraint('id', name='app_annotation_hit_histories_pkey'),
+        db.Index('app_annotation_hit_histories_app_idx', 'app_id'),
+        db.Index('app_annotation_hit_histories_account_idx', 'account_id'),
+        db.Index('app_annotation_hit_histories_annotation_idx', 'annotation_id'),
+        db.Index('app_annotation_hit_histories_message_idx', 'message_id'),
+    )
+
+    id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
+    app_id = db.Column(UUID, nullable=False)
+    annotation_id = db.Column(UUID, nullable=False)
+    source = db.Column(db.Text, nullable=False)
+    question = db.Column(db.Text, nullable=False)
+    account_id = db.Column(UUID, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
+    score = db.Column(Float, nullable=False, server_default=db.text('0'))
+    message_id = db.Column(UUID, nullable=False)
+    annotation_question = db.Column(db.Text, nullable=False)
+    annotation_content = db.Column(db.Text, nullable=False)
+
+    @property
+    def account(self):
+        account = (db.session.query(Account)
+                   .join(MessageAnnotation, MessageAnnotation.account_id == Account.id)
+                   .filter(MessageAnnotation.id == self.annotation_id).first())
+        return account
+
+    @property
+    def annotation_create_account(self):
+        account = db.session.query(Account).filter(Account.id == self.account_id).first()
+        return account
+
+
+class AppAnnotationSetting(db.Model):
+    __tablename__ = 'app_annotation_settings'
+    __table_args__ = (
+        db.PrimaryKeyConstraint('id', name='app_annotation_settings_pkey'),
+        db.Index('app_annotation_settings_app_idx', 'app_id')
+    )
+
+    id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
+    app_id = db.Column(UUID, nullable=False)
+    score_threshold = db.Column(Float, nullable=False, server_default=db.text('0'))
+    collection_binding_id = db.Column(UUID, nullable=False)
+    created_user_id = db.Column(UUID, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
+    updated_user_id = db.Column(UUID, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
+
+    @property
+    def created_account(self):
+        account = (db.session.query(Account)
+                   .join(AppAnnotationSetting, AppAnnotationSetting.created_user_id == Account.id)
+                   .filter(AppAnnotationSetting.id == self.annotation_id).first())
+        return account
+
+    @property
+    def updated_account(self):
+        account = (db.session.query(Account)
+                   .join(AppAnnotationSetting, AppAnnotationSetting.updated_user_id == Account.id)
+                   .filter(AppAnnotationSetting.id == self.annotation_id).first())
+        return account
+
+    @property
+    def collection_binding_detail(self):
+        from .dataset import DatasetCollectionBinding
+        collection_binding_detail = (db.session.query(DatasetCollectionBinding)
+                                     .filter(DatasetCollectionBinding.id == self.collection_binding_id).first())
+        return collection_binding_detail
 
 
 class OperationLog(db.Model):
@@ -625,12 +824,13 @@ class ApiToken(db.Model):
     __table_args__ = (
         db.PrimaryKeyConstraint('id', name='api_token_pkey'),
         db.Index('api_token_app_id_type_idx', 'app_id', 'type'),
-        db.Index('api_token_token_idx', 'token', 'type')
+        db.Index('api_token_token_idx', 'token', 'type'),
+        db.Index('api_token_tenant_idx', 'tenant_id', 'type')
     )
 
     id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
     app_id = db.Column(UUID, nullable=True)
-    dataset_id = db.Column(UUID, nullable=True)
+    tenant_id = db.Column(UUID, nullable=True)
     type = db.Column(db.String(16), nullable=False)
     token = db.Column(db.String(255), nullable=False)
     last_used_at = db.Column(db.DateTime, nullable=True)
@@ -661,6 +861,7 @@ class UploadFile(db.Model):
     size = db.Column(db.Integer, nullable=False)
     extension = db.Column(db.String(255), nullable=False)
     mime_type = db.Column(db.String(255), nullable=True)
+    created_by_role = db.Column(db.String(255), nullable=False, server_default=db.text("'account'::character varying"))
     created_by = db.Column(UUID, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
     used = db.Column(db.Boolean, nullable=False, server_default=db.text('false'))
@@ -761,4 +962,3 @@ class DatasetRetrieverResource(db.Model):
     retriever_from = db.Column(db.Text, nullable=False)
     created_by = db.Column(UUID, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.current_timestamp())
-

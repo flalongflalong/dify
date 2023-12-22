@@ -4,6 +4,10 @@
     ],
     "system_config": null,
     "model_flexibility": "configurable",
+    "supported_model_types": [
+        "text-generation",
+        "embeddings"
+    ],
     "price_config":{
         "gpt-4": {
             "prompt": "0.03",
@@ -14,6 +18,18 @@
         "gpt-4-32k": {
             "prompt": "0.06",
             "completion": "0.12",
+            "unit": "0.001",
+            "currency": "USD"
+        },
+        "gpt-4-1106-preview": {
+            "prompt": "0.01",
+            "completion": "0.03",
+            "unit": "0.001",
+            "currency": "USD"
+        },
+        "gpt-4-vision-preview": {
+            "prompt": "0.01",
+            "completion": "0.03",
             "unit": "0.001",
             "currency": "USD"
         },

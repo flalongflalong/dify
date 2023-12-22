@@ -12,6 +12,9 @@ import xinference from './xinference'
 import openllm from './openllm'
 import localai from './localai'
 import zhipuai from './zhipuai'
+import baichuan from './baichuan'
+import cohere from './cohere'
+import jina from './jina'
 
 export default {
   openai,
@@ -28,4 +31,7 @@ export default {
   openllm,
   localai,
   zhipuai,
+  baichuan,
+  cohere,
+  jina,
 }

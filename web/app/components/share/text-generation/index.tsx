@@ -26,6 +26,9 @@ import SavedItems from '@/app/components/app/text-generate/saved-items'
 import type { InstalledApp } from '@/models/explore'
 import { DEFAULT_VALUE_MAX_LEN, appDefaultIconBackground } from '@/config'
 import Toast from '@/app/components/base/toast'
+import type { VisionFile, VisionSettings } from '@/types/app'
+import { Resolution, TransferMethod } from '@/types/app'
+
 const GROUP_SIZE = 5 // to avoid RPM(Request per minute) limit. The group task finished then the next group.
 enum TaskStatus {
   pending = 'pending',
@@ -68,6 +71,7 @@ const TextGeneration: FC<IMainProps> = ({
   const [inputs, setInputs] = useState<Record<string, any>>({})
   const [appId, setAppId] = useState<string>('')
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
+  const [canReplaceLogo, setCanReplaceLogo] = useState<boolean>(false)
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null)
   const [moreLikeThisConfig, setMoreLikeThisConfig] = useState<MoreLikeThisConfig | null>(null)
 
@@ -91,6 +95,14 @@ const TextGeneration: FC<IMainProps> = ({
   // send message task
   const [controlSend, setControlSend] = useState(0)
   const [controlStopResponding, setControlStopResponding] = useState(0)
+  const [visionConfig, setVisionConfig] = useState<VisionSettings>({
+    enabled: false,
+    number_limits: 2,
+    detail: Resolution.low,
+    transfer_methods: [TransferMethod.local_file],
+  })
+  const [completionFiles, setCompletionFiles] = useState<VisionFile[]>([])
+
   const handleSend = () => {
     setIsCallBatchAPI(false)
     setControlSend(Date.now())
@@ -332,12 +344,17 @@ const TextGeneration: FC<IMainProps> = ({
   useEffect(() => {
     (async () => {
       const [appData, appParams]: any = await fetchInitData()
-      const { app_id: appId, site: siteInfo } = appData
+      const { app_id: appId, site: siteInfo, can_replace_logo } = appData
       setAppId(appId)
       setSiteInfo(siteInfo as SiteInfo)
+      setCanReplaceLogo(can_replace_logo)
       changeLanguage(siteInfo.default_language)
 
-      const { user_input_form, more_like_this }: any = appParams
+      const { user_input_form, more_like_this, file_upload, sensitive_word_avoidance }: any = appParams
+      setVisionConfig({
+        ...file_upload.image,
+        image_file_size_limit: appParams?.system_parameters?.image_file_size_limit,
+      })
       const prompt_variables = userInputsFormToPromptVariables(user_input_form)
       setPromptConfig({
         prompt_template: '', // placeholder for feture
@@ -349,9 +366,13 @@ const TextGeneration: FC<IMainProps> = ({
 
   // Can Use metadata(https://beta.nextjs.org/docs/api-reference/metadata) to set title. But it only works in server side client.
   useEffect(() => {
-    if (siteInfo?.title)
-      document.title = `${siteInfo.title} - Powered by Dify`
-  }, [siteInfo?.title])
+    if (siteInfo?.title) {
+      if (canReplaceLogo)
+        document.title = `${siteInfo.title}`
+      else
+        document.title = `${siteInfo.title} - Powered by Dify`
+    }
+  }, [siteInfo?.title, canReplaceLogo])
 
   const [isShowResSidebar, { setTrue: showResSidebar, setFalse: hideResSidebar }] = useBoolean(false)
   const resRef = useRef<HTMLDivElement>(null)
@@ -377,6 +398,8 @@ const TextGeneration: FC<IMainProps> = ({
     handleSaveMessage={handleSaveMessage}
     taskId={task?.id}
     onCompleted={handleCompleted}
+    visionConfig={visionConfig}
+    completionFiles={completionFiles}
   />)
 
   const renderBatchRes = () => {
@@ -511,6 +534,8 @@ const TextGeneration: FC<IMainProps> = ({
                 onInputsChange={setInputs}
                 promptConfig={promptConfig}
                 onSend={handleSend}
+                visionConfig={visionConfig}
+                onVisionFilesChange={setCompletionFiles}
               />
             </div>
             <div className={cn(isInBatchTab ? 'block' : 'hidden')}>

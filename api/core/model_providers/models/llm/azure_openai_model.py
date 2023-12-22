@@ -19,6 +19,14 @@ from core.model_providers.models.entity.model_params import ModelMode, ModelKwar
 AZURE_OPENAI_API_VERSION = '2023-07-01-preview'
 
 
+FUNCTION_CALL_MODELS = [
+    'gpt-4',
+    'gpt-4-32k',
+    'gpt-35-turbo',
+    'gpt-35-turbo-16k',
+    'gpt-4-1106-preview'
+]
+
 class AzureOpenAIModel(BaseLLM):
     def __init__(self, model_provider: BaseModelProvider,
                  name: str,
@@ -81,7 +89,20 @@ class AzureOpenAIModel(BaseLLM):
         :return:
         """
         prompts = self._get_prompt_from_messages(messages)
-        return self._client.generate([prompts], stop, callbacks)
+        generate_kwargs = {
+            'stop': stop,
+            'callbacks': callbacks
+        }
+
+        if isinstance(prompts, str):
+            generate_kwargs['prompts'] = [prompts]
+        else:
+            generate_kwargs['messages'] = [prompts]
+
+        if 'functions' in kwargs:
+            generate_kwargs['functions'] = kwargs['functions']
+
+        return self._client.generate(**generate_kwargs)
     
     @property
     def base_model_name(self) -> str:
@@ -144,3 +165,7 @@ class AzureOpenAIModel(BaseLLM):
     @property
     def support_streaming(self):
         return True
+
+    @property
+    def support_function_call(self):
+        return self.base_model_name in FUNCTION_CALL_MODELS

@@ -10,6 +10,7 @@ import type {
   FileIndexingEstimateResponse,
   HitTestingRecordsResponse,
   HitTestingResponse,
+  IndexingEstimateParams,
   IndexingEstimateResponse,
   IndexingStatusBatchResponse,
   IndexingStatusResponse,
@@ -22,6 +23,11 @@ import type {
   createDocumentResponse,
 } from '@/models/datasets'
 import type { CommonResponse, DataSourceNotionWorkspace } from '@/models/common'
+import type {
+  ApikeysListResponse,
+  CreateApiKeyResponse,
+} from '@/models/app'
+import type { RetrievalConfig } from '@/types/app'
 
 // apis for documents in a dataset
 
@@ -39,11 +45,11 @@ export type SortType = 'created_at' | 'hit_count' | '-created_at' | '-hit_count'
 
 export type MetadataType = 'all' | 'only' | 'without'
 
-export const fetchDataDetail: Fetcher<DataSet, string> = (datasetId: string) => {
+export const fetchDatasetDetail: Fetcher<DataSet, string> = (datasetId: string) => {
   return get<DataSet>(`/datasets/${datasetId}`)
 }
 
-export const updateDatasetSetting: Fetcher<DataSet, { datasetId: string; body: Partial<Pick<DataSet, 'name' | 'description' | 'permission' | 'indexing_technique'>> }> = ({ datasetId, body }) => {
+export const updateDatasetSetting: Fetcher<DataSet, { datasetId: string; body: Partial<Pick<DataSet, 'name' | 'description' | 'permission' | 'indexing_technique' | 'retrieval_model'>> }> = ({ datasetId, body }) => {
   return patch<DataSet>(`/datasets/${datasetId}`, { body })
 }
 
@@ -177,18 +183,42 @@ export const checkSegmentBatchImportProgress: Fetcher<{ job_id: string; job_stat
 }
 
 // hit testing
-export const hitTesting: Fetcher<HitTestingResponse, { datasetId: string; queryText: string }> = ({ datasetId, queryText }) => {
-  return post<HitTestingResponse>(`/datasets/${datasetId}/hit-testing`, { body: { query: queryText } })
+export const hitTesting: Fetcher<HitTestingResponse, { datasetId: string; queryText: string; retrieval_model: RetrievalConfig }> = ({ datasetId, queryText, retrieval_model }) => {
+  return post<HitTestingResponse>(`/datasets/${datasetId}/hit-testing`, { body: { query: queryText, retrieval_model } })
 }
 
 export const fetchTestingRecords: Fetcher<HitTestingRecordsResponse, { datasetId: string; params: { page: number; limit: number } }> = ({ datasetId, params }) => {
   return get<HitTestingRecordsResponse>(`/datasets/${datasetId}/queries`, { params })
 }
 
-export const fetchFileIndexingEstimate: Fetcher<FileIndexingEstimateResponse, any> = (body: any) => {
+export const fetchFileIndexingEstimate: Fetcher<FileIndexingEstimateResponse, IndexingEstimateParams> = (body: IndexingEstimateParams) => {
   return post<FileIndexingEstimateResponse>('/datasets/indexing-estimate', { body })
 }
 
 export const fetchNotionPagePreview: Fetcher<{ content: string }, { workspaceID: string; pageID: string; pageType: string }> = ({ workspaceID, pageID, pageType }) => {
   return get<{ content: string }>(`notion/workspaces/${workspaceID}/pages/${pageID}/${pageType}/preview`)
+}
+
+export const fetchApiKeysList: Fetcher<ApikeysListResponse, { url: string; params: Record<string, any> }> = ({ url, params }) => {
+  return get<ApikeysListResponse>(url, params)
+}
+
+export const delApikey: Fetcher<CommonResponse, { url: string; params: Record<string, any> }> = ({ url, params }) => {
+  return del<CommonResponse>(url, params)
+}
+
+export const createApikey: Fetcher<CreateApiKeyResponse, { url: string; body: Record<string, any> }> = ({ url, body }) => {
+  return post<CreateApiKeyResponse>(url, body)
+}
+
+export const fetchDatasetApiBaseUrl: Fetcher<{ api_base_url: string }, string> = (url) => {
+  return get<{ api_base_url: string }>(url)
+}
+
+type FileTypesRes = {
+  allowed_extensions: string[]
+}
+
+export const fetchSupportFileTypes: Fetcher<FileTypesRes, { url: string }> = ({ url }) => {
+  return get<FileTypesRes>(url)
 }

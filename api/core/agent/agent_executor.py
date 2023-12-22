@@ -10,7 +10,6 @@ from pydantic import BaseModel, Extra
 
 from core.agent.agent.multi_dataset_router_agent import MultiDatasetRouterAgent
 from core.agent.agent.openai_function_call import AutoSummarizingOpenAIFunctionCallAgent
-from core.agent.agent.openai_multi_function_call import AutoSummarizingOpenMultiAIFunctionCallAgent
 from core.agent.agent.output_parser.structured_chat import StructuredChatOutputParser
 from core.agent.agent.structed_multi_dataset_router_agent import StructuredMultiDatasetRouterAgent
 from core.agent.agent.structured_chat import AutoSummarizingStructuredChatAgent
@@ -19,6 +18,7 @@ from langchain.agents import AgentExecutor as LCAgentExecutor
 from core.helper import moderation
 from core.model_providers.error import LLMError
 from core.model_providers.models.llm.base import BaseLLM
+from core.tool.dataset_multi_retriever_tool import DatasetMultiRetrieverTool
 from core.tool.dataset_retriever_tool import DatasetRetrieverTool
 
 
@@ -27,7 +27,6 @@ class PlanningStrategy(str, enum.Enum):
     REACT_ROUTER = 'react_router'
     REACT = 'react'
     FUNCTION_CALL = 'function_call'
-    MULTI_FUNCTION_CALL = 'multi_function_call'
 
 
 class AgentConfiguration(BaseModel):
@@ -60,51 +59,37 @@ class AgentExecutor:
         self.configuration = configuration
         self.agent = self._init_agent()
 
-    def _init_agent(self) -> Union[BaseSingleActionAgent | BaseMultiActionAgent]:
+    def _init_agent(self) -> Union[BaseSingleActionAgent, BaseMultiActionAgent]:
         if self.configuration.strategy == PlanningStrategy.REACT:
             agent = AutoSummarizingStructuredChatAgent.from_llm_and_tools(
                 model_instance=self.configuration.model_instance,
-                llm=self.configuration.model_instance.client,
                 tools=self.configuration.tools,
                 output_parser=StructuredChatOutputParser(),
-                summary_llm=self.configuration.summary_model_instance.client
+                summary_model_instance=self.configuration.summary_model_instance
                 if self.configuration.summary_model_instance else None,
                 verbose=True
             )
         elif self.configuration.strategy == PlanningStrategy.FUNCTION_CALL:
             agent = AutoSummarizingOpenAIFunctionCallAgent.from_llm_and_tools(
                 model_instance=self.configuration.model_instance,
-                llm=self.configuration.model_instance.client,
                 tools=self.configuration.tools,
                 extra_prompt_messages=self.configuration.memory.buffer if self.configuration.memory else None,  # used for read chat histories memory
-                summary_llm=self.configuration.summary_model_instance.client
-                if self.configuration.summary_model_instance else None,
-                verbose=True
-            )
-        elif self.configuration.strategy == PlanningStrategy.MULTI_FUNCTION_CALL:
-            agent = AutoSummarizingOpenMultiAIFunctionCallAgent.from_llm_and_tools(
-                model_instance=self.configuration.model_instance,
-                llm=self.configuration.model_instance.client,
-                tools=self.configuration.tools,
-                extra_prompt_messages=self.configuration.memory.buffer if self.configuration.memory else None,  # used for read chat histories memory
-                summary_llm=self.configuration.summary_model_instance.client
+                summary_model_instance=self.configuration.summary_model_instance
                 if self.configuration.summary_model_instance else None,
                 verbose=True
             )
         elif self.configuration.strategy == PlanningStrategy.ROUTER:
-            self.configuration.tools = [t for t in self.configuration.tools if isinstance(t, DatasetRetrieverTool)]
+            self.configuration.tools = [t for t in self.configuration.tools if isinstance(t, DatasetRetrieverTool) or isinstance(t, DatasetMultiRetrieverTool)]
             agent = MultiDatasetRouterAgent.from_llm_and_tools(
                 model_instance=self.configuration.model_instance,
-                llm=self.configuration.model_instance.client,
                 tools=self.configuration.tools,
                 extra_prompt_messages=self.configuration.memory.buffer if self.configuration.memory else None,
                 verbose=True
             )
         elif self.configuration.strategy == PlanningStrategy.REACT_ROUTER:
-            self.configuration.tools = [t for t in self.configuration.tools if isinstance(t, DatasetRetrieverTool)]
+            self.configuration.tools = [t for t in self.configuration.tools if isinstance(t, DatasetRetrieverTool) or isinstance(t, DatasetMultiRetrieverTool)]
             agent = StructuredMultiDatasetRouterAgent.from_llm_and_tools(
                 model_instance=self.configuration.model_instance,
-                llm=self.configuration.model_instance.client,
                 tools=self.configuration.tools,
                 output_parser=StructuredChatOutputParser(),
                 verbose=True

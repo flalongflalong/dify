@@ -1,27 +1,28 @@
 'use client'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useContext } from 'use-context-selector'
 import { UserCircleIcon } from '@heroicons/react/24/solid'
 import cn from 'classnames'
-import type { CitationItem, DisplayScene, FeedbackFunc, Feedbacktype, IChatItem, SubmitAnnotationFunc, ThoughtItem } from '../type'
+import type { CitationItem, DisplayScene, FeedbackFunc, Feedbacktype, IChatItem, ThoughtItem } from '../type'
 import OperationBtn from '../operation'
 import LoadingAnim from '../loading-anim'
-import { EditIcon, EditIconSolid, OpeningStatementIcon, RatingIcon } from '../icon-component'
+import { EditIconSolid, OpeningStatementIcon, RatingIcon } from '../icon-component'
 import s from '../style.module.css'
 import MoreInfo from '../more-info'
 import CopyBtn from '../copy-btn'
 import Thought from '../thought'
 import Citation from '../citation'
 import { randomString } from '@/utils'
-import type { Annotation, MessageRating } from '@/models/log'
-import AppContext from '@/context/app-context'
+import type { MessageRating } from '@/models/log'
 import Tooltip from '@/app/components/base/tooltip'
 import { Markdown } from '@/app/components/base/markdown'
-import AutoHeightTextarea from '@/app/components/base/auto-height-textarea'
-import Button from '@/app/components/base/button'
 import type { DataSet } from '@/models/datasets'
+import AnnotationCtrlBtn from '@/app/components/app/configuration/toolbox/annotation/annotation-ctrl-btn'
+import EditReplyModal from '@/app/components/app/annotation/edit-annotation-modal'
+import { EditTitle } from '@/app/components/app/annotation/edit-annotation-modal/edit-item'
+import { MessageFast } from '@/app/components/base/icons/src/vender/solid/communication'
+
 const Divider: FC<{ name: string }> = ({ name }) => {
   const { t } = useTranslation()
   return <div className='flex items-center my-2'>
@@ -41,27 +42,56 @@ export type IAnswerProps = {
   feedbackDisabled: boolean
   isHideFeedbackEdit: boolean
   onFeedback?: FeedbackFunc
-  onSubmitAnnotation?: SubmitAnnotationFunc
   displayScene: DisplayScene
   isResponsing?: boolean
-  answerIconClassName?: string
+  answerIcon?: ReactNode
   thoughts?: ThoughtItem[]
   citation?: CitationItem[]
   isThinking?: boolean
   dataSets?: DataSet[]
   isShowCitation?: boolean
   isShowCitationHitInfo?: boolean
+  // Annotation props
+  supportAnnotation?: boolean
+  appId?: string
+  question: string
+  onAnnotationEdited?: (question: string, answer: string) => void
+  onAnnotationAdded?: (annotationId: string, authorName: string, question: string, answer: string) => void
+  onAnnotationRemoved?: () => void
 }
 // The component needs to maintain its own state to control whether to display input component
-const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedbackEdit = false, onFeedback, onSubmitAnnotation, displayScene = 'web', isResponsing, answerIconClassName, thoughts, citation, isThinking, dataSets, isShowCitation, isShowCitationHitInfo = false }) => {
-  const { id, content, more, feedback, adminFeedback, annotation: initAnnotation } = item
+const Answer: FC<IAnswerProps> = ({
+  item,
+  feedbackDisabled = false,
+  isHideFeedbackEdit = false,
+  onFeedback,
+  displayScene = 'web',
+  isResponsing,
+  answerIcon,
+  thoughts,
+  citation,
+  isThinking,
+  dataSets,
+  isShowCitation,
+  isShowCitationHitInfo = false,
+  supportAnnotation,
+  appId,
+  question,
+  onAnnotationEdited,
+  onAnnotationAdded,
+  onAnnotationRemoved,
+}) => {
+  const { id, content, more, feedback, adminFeedback, annotation } = item
+  const hasAnnotation = !!annotation?.id
   const [showEdit, setShowEdit] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [annotation, setAnnotation] = useState<Annotation | undefined | null>(initAnnotation)
-  const [inputValue, setInputValue] = useState<string>(initAnnotation?.content ?? '')
+  // const [annotation, setAnnotation] = useState<Annotation | undefined | null>(initAnnotation)
+  // const [inputValue, setInputValue] = useState<string>(initAnnotation?.content ?? '')
   const [localAdminFeedback, setLocalAdminFeedback] = useState<Feedbacktype | undefined | null>(adminFeedback)
-  const { userProfile } = useContext(AppContext)
+  // const { userProfile } = useContext(AppContext)
   const { t } = useTranslation()
+
+  const [isShowReplyModal, setIsShowReplyModal] = useState(false)
 
   /**
  * Render feedback results (distinguish between users and administrators)
@@ -106,6 +136,19 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
     )
   }
 
+  const renderHasAnnotationBtn = () => {
+    return (
+      <div
+        className={cn(s.hasAnnotationBtn, 'relative box-border flex items-center justify-center h-7 w-7 p-0.5 rounded-lg bg-white cursor-pointer text-[#444CE7]')}
+        style={{ boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)' }}
+      >
+        <div className='p-1 rounded-lg bg-[#EEF4FF] '>
+          <MessageFast className='w-4 h-4' />
+        </div>
+      </div>
+    )
+  }
+
   /**
    * Different scenarios have different operation items.
    * @param isWebScene  Whether it is web scene
@@ -127,12 +170,6 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
 
     const adminOperation = () => {
       return <div className='flex gap-1'>
-        <Tooltip selector={`user-feedback-${randomString(16)}`} content={t('appLog.detail.operation.addAnnotation') as string}>
-          {OperationBtn({
-            innerContent: <IconWrapper><EditIcon className='hover:text-gray-800' /></IconWrapper>,
-            onClick: () => setShowEdit(true),
-          })}
-        </Tooltip>
         {!localAdminFeedback?.rating && <>
           <Tooltip selector={`user-feedback-${randomString(16)}`} content={t('appLog.detail.operation.like') as string}>
             {OperationBtn({
@@ -168,14 +205,18 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
   return (
     <div key={id}>
       <div className='flex items-start'>
-        <div className={`${s.answerIcon} ${answerIconClassName} w-10 h-10 shrink-0`}>
-          {isResponsing
-            && <div className={s.typeingIcon}>
-              <LoadingAnim type='avatar' />
+        {
+          answerIcon || (
+            <div className={`${s.answerIcon} w-10 h-10 shrink-0`}>
+              {isResponsing
+                && <div className={s.typeingIcon}>
+                  <LoadingAnim type='avatar' />
+                </div>
+              }
             </div>
-          }
-        </div>
-        <div className={cn(s.answerWrapWrap, 'chat-answer-container')}>
+          )
+        }
+        <div className={cn(s.answerWrapWrap, 'chat-answer-container group')}>
           <div className={`${s.answerWrap} ${showEdit ? 'w-full' : ''}`}>
             <div className={`${s.answer} relative text-sm text-gray-900`}>
               <div className={'ml-2 py-3 px-4 bg-gray-100 rounded-tr-2xl rounded-b-2xl'}>
@@ -200,47 +241,27 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
                   )
                   : (
                     <div>
-                      <Markdown content={content} />
+                      {annotation?.logAnnotation && (
+                        <div className='mb-1'>
+                          <div className='mb-3'>
+                            <Markdown className='line-through !text-gray-400' content={content} />
+                          </div>
+                          <EditTitle title={t('appAnnotation.editBy', {
+                            author: annotation?.logAnnotation.account?.name,
+                          })} />
+                        </div>
+                      )}
+
+                      <div>
+                        <Markdown content={annotation?.logAnnotation ? annotation?.logAnnotation.content : content} />
+                      </div>
+                      {(hasAnnotation && !annotation?.logAnnotation) && (
+                        <EditTitle className='mt-1' title={t('appAnnotation.editBy', {
+                          author: annotation.authorName,
+                        })} />
+                      )}
                     </div>
                   )}
-                {!showEdit
-                  ? (annotation?.content
-                    && <>
-                      <Divider name={annotation?.account?.name || userProfile?.name} />
-                      {annotation.content}
-                    </>)
-                  : <>
-                    <Divider name={annotation?.account?.name || userProfile?.name} />
-                    <AutoHeightTextarea
-                      placeholder={t('appLog.detail.operation.annotationPlaceholder') as string}
-                      value={inputValue}
-                      onChange={e => setInputValue(e.target.value)}
-                      minHeight={58}
-                      className={`${cn(s.textArea)} !py-2 resize-none block w-full !px-3 bg-gray-50 border border-gray-200 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-700 tracking-[0.2px]`}
-                    />
-                    <div className="mt-2 flex flex-row">
-                      <Button
-                        type='primary'
-                        className='mr-2'
-                        loading={loading}
-                        onClick={async () => {
-                          if (!inputValue)
-                            return
-                          setLoading(true)
-                          const res = await onSubmitAnnotation?.(id, inputValue)
-                          if (res)
-                            setAnnotation({ ...annotation, content: inputValue } as Annotation)
-                          setLoading(false)
-                          setShowEdit(false)
-                        }}>{t('common.operation.confirm')}</Button>
-                      <Button
-                        onClick={() => {
-                          setInputValue(annotation?.content ?? '')
-                          setShowEdit(false)
-                        }}>{t('common.operation.cancel')}</Button>
-                    </div>
-                  </>
-                }
                 {
                   !!citation?.length && !isThinking && isShowCitation && !isResponsing && (
                     <Citation data={citation} showHitInfo={isShowCitationHitInfo} />
@@ -254,6 +275,36 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
                     className={cn(s.copyBtn, 'mr-1')}
                   />
                 )}
+                {supportAnnotation && (
+                  <AnnotationCtrlBtn
+                    appId={appId!}
+                    messageId={id}
+                    annotationId={annotation?.id || ''}
+                    className={cn(s.annotationBtn, 'ml-1')}
+                    cached={hasAnnotation}
+                    query={question}
+                    answer={content}
+                    onAdded={(id, authorName) => onAnnotationAdded?.(id, authorName, question, content)}
+                    onEdit={() => setIsShowReplyModal(true)}
+                    onRemoved={onAnnotationRemoved!}
+                  />
+                )}
+
+                <EditReplyModal
+                  isShow={isShowReplyModal}
+                  onHide={() => setIsShowReplyModal(false)}
+                  query={question}
+                  answer={content}
+                  onEdited={onAnnotationEdited!}
+                  onAdded={onAnnotationAdded!}
+                  appId={appId!}
+                  messageId={id}
+                  annotationId={annotation?.id || ''}
+                  createdAt={annotation?.created_at}
+                  onRemove={() => { }}
+                />
+                {hasAnnotation && renderHasAnnotationBtn()}
+
                 {!feedbackDisabled && !item.feedbackDisabled && renderItemOperation(displayScene !== 'console')}
                 {/* Admin feedback is displayed only in the background. */}
                 {!feedbackDisabled && renderFeedbackRating(localAdminFeedback?.rating, false, false)}
@@ -261,7 +312,8 @@ const Answer: FC<IAnswerProps> = ({ item, feedbackDisabled = false, isHideFeedba
                 {!feedbackDisabled && renderFeedbackRating(feedback?.rating, !isHideFeedbackEdit, displayScene !== 'console')}
               </div>
             </div>
-            {more && <MoreInfo more={more} isQuestion={false} />}
+
+            {more && <MoreInfo className='invisible group-hover:visible' more={more} isQuestion={false} />}
           </div>
         </div>
       </div>

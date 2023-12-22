@@ -10,7 +10,9 @@ from controllers.service_api.app.error import NotChatAppError
 from controllers.service_api.wraps import AppApiResource
 from libs.helper import TimestampField, uuid_value
 from services.message_service import MessageService
-
+from extensions.ext_database import db
+from models.model import Message, EndUser
+from fields.conversation_fields import message_file_fields
 
 class MessageListApi(AppApiResource):
     feedback_fields = {
@@ -41,6 +43,7 @@ class MessageListApi(AppApiResource):
         'inputs': fields.Raw,
         'query': fields.String,
         'answer': fields.String,
+        'message_files': fields.List(fields.Nested(message_file_fields), attribute='files'),
         'feedback': fields.Nested(feedback_fields, attribute='user_feedback', allow_null=True),
         'retriever_resources': fields.List(fields.Nested(retriever_resource_fields)),
         'created_at': TimestampField
@@ -96,5 +99,38 @@ class MessageFeedbackApi(AppApiResource):
         return {'result': 'success'}
 
 
+class MessageSuggestedApi(AppApiResource):
+    def get(self, app_model, end_user, message_id):
+        message_id = str(message_id)
+        if app_model.mode != 'chat':
+            raise NotChatAppError()
+        try:
+            message = db.session.query(Message).filter(
+                Message.id == message_id,
+                Message.app_id == app_model.id,
+            ).first()
+
+            if end_user is None and message.from_end_user_id is not None:
+                user = db.session.query(EndUser) \
+                    .filter(
+                        EndUser.tenant_id == app_model.tenant_id,
+                        EndUser.id == message.from_end_user_id,
+                        EndUser.type == 'service_api'
+                    ).first()
+            else:
+                user = end_user
+            questions = MessageService.get_suggested_questions_after_answer(
+                app_model=app_model,
+                user=user,
+                message_id=message_id,
+                check_enabled=False
+            )
+        except services.errors.message.MessageNotExistsError:
+            raise NotFound("Message Not Exists.")
+
+        return {'result': 'success', 'data': questions}
+
+
 api.add_resource(MessageListApi, '/messages')
 api.add_resource(MessageFeedbackApi, '/messages/<uuid:message_id>/feedbacks')
+api.add_resource(MessageSuggestedApi, '/messages/<uuid:message_id>/suggested')

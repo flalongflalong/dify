@@ -1,9 +1,10 @@
 'use client'
 import { Dialog } from '@headlessui/react'
 import { useTranslation } from 'react-i18next'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import Button from '../button'
 
-type DrawerProps = {
+export type IDrawerProps = {
   title?: string
   description?: string
   panelClassname?: string
@@ -12,6 +13,8 @@ type DrawerProps = {
   mask?: boolean
   isOpen: boolean
   // closable: boolean
+  showClose?: boolean
+  clickOutsideNotOpen?: boolean
   onClose: () => void
   onCancel?: () => void
   onOk?: () => void
@@ -24,17 +27,19 @@ export default function Drawer({
   children,
   footer,
   mask = true,
+  showClose = false,
   isOpen,
+  clickOutsideNotOpen,
   onClose,
   onCancel,
   onOk,
-}: DrawerProps) {
+}: IDrawerProps) {
   const { t } = useTranslation()
   return (
     <Dialog
       unmount={false}
       open={isOpen}
-      onClose={() => onClose()}
+      onClose={() => !clickOutsideNotOpen && onClose()}
       className="fixed z-30 inset-0 overflow-y-auto"
     >
       <div className="flex w-screen h-screen justify-end">
@@ -51,6 +56,9 @@ export default function Drawer({
               className="text-lg font-medium leading-6 text-gray-900"
             >
               {title}
+            </Dialog.Title>}
+            {showClose && <Dialog.Title className="flex items-center mb-4" as="div">
+              <XMarkIcon className='w-4 h-4 text-gray-500' onClick={onClose} />
             </Dialog.Title>}
             {description && <Dialog.Description className='text-gray-500 text-xs font-normal mt-2'>{description}</Dialog.Description>}
             {children}

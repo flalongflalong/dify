@@ -1,19 +1,32 @@
 import type { Fetcher } from 'swr'
 import { del, get, patch, post, put } from './base'
 import type {
-  AccountIntegrate, CommonResponse, DataSourceNotion,
-  DocumentsLimitResponse,
+  AccountIntegrate,
+  ApiBasedExtension,
+  CodeBasedExtension,
+  CommonResponse,
+  DataSourceNotion,
   FileUploadConfigResponse,
   ICurrentWorkspace,
-  IWorkspace, InvitationResponse, LangGeniusVersionResponse, Member,
-  OauthResponse, PluginProvider, Provider, ProviderAnthropicToken, ProviderAzureToken,
-  SetupStatusResponse, UserProfileOriginResponse,
+  IWorkspace,
+  InvitationResponse,
+  LangGeniusVersionResponse,
+  Member,
+  ModerateResponse,
+  OauthResponse,
+  PluginProvider,
+  Provider,
+  ProviderAnthropicToken,
+  ProviderAzureToken,
+  SetupStatusResponse,
+  UserProfileOriginResponse,
 } from '@/models/common'
 import type {
   UpdateOpenAIKeyResponse,
   ValidateOpenAIKeyResponse,
 } from '@/models/app'
 import type { BackendModel, ProviderMap } from '@/app/components/header/account-setting/model-page/declarations'
+import type { RETRIEVE_METHOD } from '@/types/app'
 
 export const login: Fetcher<CommonResponse & { data: string }, { url: string; body: Record<string, any> }> = ({ url, body }) => {
   return post(url, { body }) as Promise<CommonResponse & { data: string }>
@@ -88,6 +101,10 @@ export const fetchFilePreview: Fetcher<{ content: string }, { fileID: string }> 
 
 export const fetchCurrentWorkspace: Fetcher<ICurrentWorkspace, { url: string; params: Record<string, any> }> = ({ url, params }) => {
   return get<ICurrentWorkspace>(url, { params })
+}
+
+export const updateCurrentWorkspace: Fetcher<ICurrentWorkspace, { url: string; body: Record<string, any> }> = ({ url, body }) => {
+  return post<ICurrentWorkspace>(url, { body })
 }
 
 export const fetchWorkspaces: Fetcher<{ workspaces: IWorkspace[] }, { url: string; params: Record<string, any> }> = ({ url, params }) => {
@@ -181,10 +198,49 @@ export const fetchFileUploadConfig: Fetcher<FileUploadConfigResponse, { url: str
   return get<FileUploadConfigResponse>(url)
 }
 
-export const fetchDocumentsLimit: Fetcher<DocumentsLimitResponse, string> = (url) => {
-  return get<DocumentsLimitResponse>(url)
-}
-
 export const fetchFreeQuotaVerify: Fetcher<{ result: string; flag: boolean; reason: string }, string> = (url) => {
   return get(url) as Promise<{ result: string; flag: boolean; reason: string }>
+}
+
+export const fetchNotionConnection: Fetcher<{ data: string }, string> = (url) => {
+  return get(url) as Promise<{ data: string }>
+}
+
+export const fetchDataSourceNotionBinding: Fetcher<{ result: string }, string> = (url) => {
+  return get(url) as Promise<{ result: string }>
+}
+
+export const fetchApiBasedExtensionList: Fetcher<ApiBasedExtension[], string> = (url) => {
+  return get(url) as Promise<ApiBasedExtension[]>
+}
+
+export const fetchApiBasedExtensionDetail: Fetcher<ApiBasedExtension, string> = (url) => {
+  return get(url) as Promise<ApiBasedExtension>
+}
+
+export const addApiBasedExtension: Fetcher<ApiBasedExtension, { url: string; body: ApiBasedExtension }> = ({ url, body }) => {
+  return post(url, { body }) as Promise<ApiBasedExtension>
+}
+
+export const updateApiBasedExtension: Fetcher<ApiBasedExtension, { url: string; body: ApiBasedExtension }> = ({ url, body }) => {
+  return post(url, { body }) as Promise<ApiBasedExtension>
+}
+
+export const deleteApiBasedExtension: Fetcher<{ result: string }, string> = (url) => {
+  return del(url) as Promise<{ result: string }>
+}
+
+export const fetchCodeBasedExtensionList: Fetcher<CodeBasedExtension, string> = (url) => {
+  return get(url) as Promise<CodeBasedExtension>
+}
+
+export const moderate = (url: string, body: { app_id: string; text: string }) => {
+  return post(url, { body }) as Promise<ModerateResponse>
+}
+
+type RetrievalMethodsRes = {
+  'retrieval_method': RETRIEVE_METHOD[]
+}
+export const fetchSupportRetrievalMethods: Fetcher<RetrievalMethodsRes, string> = (url) => {
+  return get<RetrievalMethodsRes>(url)
 }

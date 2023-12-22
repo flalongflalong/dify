@@ -6,23 +6,25 @@ from core.callback_handler.entity.agent_loop import AgentLoop
 from core.callback_handler.entity.dataset_query import DatasetQueryObj
 from core.callback_handler.entity.llm_message import LLMMessage
 from core.callback_handler.entity.chain_result import ChainResult
+from core.file.file_obj import FileObj
 from core.model_providers.model_factory import ModelFactory
-from core.model_providers.models.entity.message import to_prompt_messages, MessageType
+from core.model_providers.models.entity.message import to_prompt_messages, MessageType, PromptMessageFile
 from core.model_providers.models.llm.base import BaseLLM
 from core.prompt.prompt_builder import PromptBuilder
-from core.prompt.prompt_template import JinjaPromptTemplate
+from core.prompt.prompt_template import PromptTemplateParser
 from events.message_event import message_was_created
 from extensions.ext_database import db
 from extensions.ext_redis import redis_client
 from models.dataset import DatasetQuery
 from models.model import AppModelConfig, Conversation, Account, Message, EndUser, App, MessageAgentThought, \
-    MessageChain, DatasetRetrieverResource
+    MessageChain, DatasetRetrieverResource, MessageFile
 
 
 class ConversationMessageTask:
     def __init__(self, task_id: str, app: App, app_model_config: AppModelConfig, user: Account,
-                 inputs: dict, query: str, streaming: bool, model_instance: BaseLLM,
-                 conversation: Optional[Conversation] = None, is_override: bool = False):
+                 inputs: dict, query: str, files: List[FileObj], streaming: bool,
+                 model_instance: BaseLLM, conversation: Optional[Conversation] = None, is_override: bool = False,
+                 auto_generate_name: bool = True):
         self.start_at = time.perf_counter()
 
         self.task_id = task_id
@@ -35,6 +37,7 @@ class ConversationMessageTask:
         self.user = user
         self.inputs = inputs
         self.query = query
+        self.files = files
         self.streaming = streaming
 
         self.conversation = conversation
@@ -45,6 +48,7 @@ class ConversationMessageTask:
         self.message = None
 
         self.retriever_resource = None
+        self.auto_generate_name = auto_generate_name
 
         self.model_dict = self.app_model_config.model_dict
         self.provider_name = self.model_dict.get('provider')
@@ -74,10 +78,10 @@ class ConversationMessageTask:
         if self.mode == 'chat':
             introduction = self.app_model_config.opening_statement
             if introduction:
-                prompt_template = JinjaPromptTemplate.from_template(template=introduction)
-                prompt_inputs = {k: self.inputs[k] for k in prompt_template.input_variables if k in self.inputs}
+                prompt_template = PromptTemplateParser(template=introduction)
+                prompt_inputs = {k: self.inputs[k] for k in prompt_template.variable_keys if k in self.inputs}
                 try:
-                    introduction = prompt_template.format(**prompt_inputs)
+                    introduction = prompt_template.format(prompt_inputs)
                 except KeyError:
                     pass
 
@@ -94,13 +98,13 @@ class ConversationMessageTask:
         if not self.conversation:
             self.is_new_conversation = True
             self.conversation = Conversation(
-                app_id=self.app_model_config.app_id,
+                app_id=self.app.id,
                 app_model_config_id=self.app_model_config.id,
                 model_provider=self.provider_name,
                 model_id=self.model_name,
                 override_model_configs=json.dumps(override_model_configs) if override_model_configs else None,
                 mode=self.mode,
-                name='',
+                name='New conversation',
                 inputs=self.inputs,
                 introduction=introduction,
                 system_instruction=system_instruction,
@@ -115,7 +119,7 @@ class ConversationMessageTask:
             db.session.commit()
 
         self.message = Message(
-            app_id=self.app_model_config.app_id,
+            app_id=self.app.id,
             model_provider=self.provider_name,
             model_id=self.model_name,
             override_model_configs=json.dumps(override_model_configs) if override_model_configs else None,
@@ -142,6 +146,19 @@ class ConversationMessageTask:
         db.session.add(self.message)
         db.session.commit()
 
+        for file in self.files:
+            message_file = MessageFile(
+                message_id=self.message.id,
+                type=file.type.value,
+                transfer_method=file.transfer_method.value,
+                url=file.url,
+                upload_file_id=file.upload_file_id,
+                created_by_role=('account' if isinstance(self.user, Account) else 'end_user'),
+                created_by=self.user.id
+            )
+            db.session.add(message_file)
+            db.session.commit()
+
     def append_message_text(self, text: str):
         if text is not None:
             self._pub_handler.pub_text(text)
@@ -150,12 +167,12 @@ class ConversationMessageTask:
         message_tokens = llm_message.prompt_tokens
         answer_tokens = llm_message.completion_tokens
 
-        message_unit_price = self.model_instance.get_tokens_unit_price(MessageType.HUMAN)
-        message_price_unit = self.model_instance.get_price_unit(MessageType.HUMAN)
+        message_unit_price = self.model_instance.get_tokens_unit_price(MessageType.USER)
+        message_price_unit = self.model_instance.get_price_unit(MessageType.USER)
         answer_unit_price = self.model_instance.get_tokens_unit_price(MessageType.ASSISTANT)
         answer_price_unit = self.model_instance.get_price_unit(MessageType.ASSISTANT)
 
-        message_total_price = self.model_instance.calc_tokens_price(message_tokens, MessageType.HUMAN)
+        message_total_price = self.model_instance.calc_tokens_price(message_tokens, MessageType.USER)
         answer_total_price = self.model_instance.calc_tokens_price(answer_tokens, MessageType.ASSISTANT)
         total_price = message_total_price + answer_total_price
 
@@ -163,7 +180,7 @@ class ConversationMessageTask:
         self.message.message_tokens = message_tokens
         self.message.message_unit_price = message_unit_price
         self.message.message_price_unit = message_price_unit
-        self.message.answer = PromptBuilder.process_template(
+        self.message.answer = PromptTemplateParser.remove_template_variables(
             llm_message.completion.strip()) if llm_message.completion else ''
         self.message.answer_tokens = answer_tokens
         self.message.answer_unit_price = answer_unit_price
@@ -176,7 +193,8 @@ class ConversationMessageTask:
         message_was_created.send(
             self.message,
             conversation=self.conversation,
-            is_first_message=self.is_new_conversation
+            is_first_message=self.is_new_conversation,
+            auto_generate_name=self.auto_generate_name
         )
 
         if not by_stopped:
@@ -226,15 +244,15 @@ class ConversationMessageTask:
 
     def on_agent_end(self, message_agent_thought: MessageAgentThought, agent_model_instance: BaseLLM,
                      agent_loop: AgentLoop):
-        agent_message_unit_price = agent_model_instance.get_tokens_unit_price(MessageType.HUMAN)
-        agent_message_price_unit = agent_model_instance.get_price_unit(MessageType.HUMAN)
+        agent_message_unit_price = agent_model_instance.get_tokens_unit_price(MessageType.USER)
+        agent_message_price_unit = agent_model_instance.get_price_unit(MessageType.USER)
         agent_answer_unit_price = agent_model_instance.get_tokens_unit_price(MessageType.ASSISTANT)
         agent_answer_price_unit = agent_model_instance.get_price_unit(MessageType.ASSISTANT)
 
         loop_message_tokens = agent_loop.prompt_tokens
         loop_answer_tokens = agent_loop.completion_tokens
 
-        loop_message_total_price = agent_model_instance.calc_tokens_price(loop_message_tokens, MessageType.HUMAN)
+        loop_message_total_price = agent_model_instance.calc_tokens_price(loop_message_tokens, MessageType.USER)
         loop_answer_total_price = agent_model_instance.calc_tokens_price(loop_answer_tokens, MessageType.ASSISTANT)
         loop_total_price = loop_message_total_price + loop_answer_total_price
 
@@ -290,6 +308,10 @@ class ConversationMessageTask:
                 db.session.commit()
             self.retriever_resource = resource
 
+    def on_message_replace(self, text: str):
+        if text is not None:
+            self._pub_handler.pub_message_replace(text)
+
     def message_end(self):
         self._pub_handler.pub_message_end(self.retriever_resource)
 
@@ -297,9 +319,13 @@ class ConversationMessageTask:
         self._pub_handler.pub_message_end(self.retriever_resource)
         self._pub_handler.pub_end()
 
+    def annotation_end(self, text: str, annotation_id: str, annotation_author_name: str):
+        self._pub_handler.pub_annotation(text, annotation_id, annotation_author_name, self.start_at)
+        self._pub_handler.pub_end()
+
 
 class PubHandler:
-    def __init__(self, user: Union[Account | EndUser], task_id: str,
+    def __init__(self, user: Union[Account, EndUser], task_id: str,
                  message: Message, conversation: Conversation,
                  chain_pub: bool = False, agent_thought_pub: bool = False):
         self._channel = PubHandler.generate_channel_name(user, task_id)
@@ -312,7 +338,7 @@ class PubHandler:
         self._agent_thought_pub = agent_thought_pub
 
     @classmethod
-    def generate_channel_name(cls, user: Union[Account | EndUser], task_id: str):
+    def generate_channel_name(cls, user: Union[Account, EndUser], task_id: str):
         if not user:
             raise ValueError("user is required")
 
@@ -320,13 +346,31 @@ class PubHandler:
         return "generate_result:{}-{}".format(user_str, task_id)
 
     @classmethod
-    def generate_stopped_cache_key(cls, user: Union[Account | EndUser], task_id: str):
+    def generate_stopped_cache_key(cls, user: Union[Account, EndUser], task_id: str):
         user_str = 'account-' + str(user.id) if isinstance(user, Account) else 'end-user-' + str(user.id)
         return "generate_result_stopped:{}-{}".format(user_str, task_id)
 
     def pub_text(self, text: str):
         content = {
             'event': 'message',
+            'data': {
+                'task_id': self._task_id,
+                'message_id': str(self._message.id),
+                'text': text,
+                'mode': self._conversation.mode,
+                'conversation_id': str(self._conversation.id)
+            }
+        }
+
+        redis_client.publish(self._channel, json.dumps(content))
+
+        if self._is_stopped():
+            self.pub_end()
+            raise ConversationTaskStoppedException()
+
+    def pub_message_replace(self, text: str):
+        content = {
+            'event': 'message_replace',
             'data': {
                 'task_id': self._task_id,
                 'message_id': str(self._message.id),
@@ -395,11 +439,35 @@ class PubHandler:
                 'task_id': self._task_id,
                 'message_id': self._message.id,
                 'mode': self._conversation.mode,
-                'conversation_id': self._conversation.id
+                'conversation_id': self._conversation.id,
             }
         }
         if retriever_resource:
             content['data']['retriever_resources'] = retriever_resource
+        redis_client.publish(self._channel, json.dumps(content))
+
+        if self._is_stopped():
+            self.pub_end()
+            raise ConversationTaskStoppedException()
+
+    def pub_annotation(self, text: str, annotation_id: str, annotation_author_name: str, start_at: float):
+        content = {
+            'event': 'annotation',
+            'data': {
+                'task_id': self._task_id,
+                'message_id': self._message.id,
+                'mode': self._conversation.mode,
+                'conversation_id': self._conversation.id,
+                'text': text,
+                'annotation_id': annotation_id,
+                'annotation_author_name': annotation_author_name
+            }
+        }
+        self._message.answer = text
+        self._message.provider_response_latency = time.perf_counter() - start_at
+
+        db.session.commit()
+
         redis_client.publish(self._channel, json.dumps(content))
 
         if self._is_stopped():
@@ -414,7 +482,7 @@ class PubHandler:
         redis_client.publish(self._channel, json.dumps(content))
 
     @classmethod
-    def pub_error(cls, user: Union[Account | EndUser], task_id: str, e):
+    def pub_error(cls, user: Union[Account, EndUser], task_id: str, e):
         content = {
             'error': type(e).__name__,
             'description': e.description if getattr(e, 'description', None) is not None else str(e)
@@ -427,7 +495,7 @@ class PubHandler:
         return redis_client.get(self._stopped_cache_key) is not None
 
     @classmethod
-    def ping(cls, user: Union[Account | EndUser], task_id: str):
+    def ping(cls, user: Union[Account, EndUser], task_id: str):
         content = {
             'event': 'ping'
         }
@@ -436,10 +504,14 @@ class PubHandler:
         redis_client.publish(channel, json.dumps(content))
 
     @classmethod
-    def stop(cls, user: Union[Account | EndUser], task_id: str):
+    def stop(cls, user: Union[Account, EndUser], task_id: str):
         stopped_cache_key = cls.generate_stopped_cache_key(user, task_id)
         redis_client.setex(stopped_cache_key, 600, 1)
 
 
 class ConversationTaskStoppedException(Exception):
+    pass
+
+
+class ConversationTaskInterruptException(Exception):
     pass

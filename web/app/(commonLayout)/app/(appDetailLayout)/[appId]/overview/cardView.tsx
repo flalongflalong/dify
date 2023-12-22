@@ -38,9 +38,9 @@ const CardView: FC<ICardViewProps> = ({ appId }) => {
 
     message ||= (type === 'success' ? 'modifiedSuccessfully' : 'modifiedUnsuccessfully')
 
-    if (type === 'success') {
+    if (type === 'success')
       mutate(detailParams)
-    }
+
     notify({
       type,
       message: t(`common.actionMsg.${message}`),
@@ -79,7 +79,7 @@ const CardView: FC<ICardViewProps> = ({ appId }) => {
     if (!err)
       localStorage.setItem(NEED_REFRESH_APP_LIST_KEY, '1')
 
-      handleCallbackResult(err)
+    handleCallbackResult(err)
   }
 
   const onGenerateCode = async () => {
@@ -93,7 +93,7 @@ const CardView: FC<ICardViewProps> = ({ appId }) => {
   }
 
   return (
-    <div className="min-w-max grid gap-6 grid-cols-1 xl:grid-cols-2 w-full mb-6">
+    <div className="grid gap-6 grid-cols-1 xl:grid-cols-2 w-full mb-6">
       <AppCard
         appInfo={response}
         cardType="webapp"

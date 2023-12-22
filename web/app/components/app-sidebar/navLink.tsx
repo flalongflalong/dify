@@ -18,15 +18,25 @@ export type NavLinkProps = {
     selected: NavIcon
     normal: NavIcon
   }
+  mode?: 'expand' | 'collapse'
 }
 
 export default function NavLink({
   name,
   href,
   iconMap,
+  mode = 'expand',
 }: NavLinkProps) {
   const segment = useSelectedLayoutSegment()
-  const isActive = href.toLowerCase().split('/')?.pop() === segment?.toLowerCase()
+  const formattedSegment = (() => {
+    let res = segment?.toLowerCase()
+    // logs and annotations use the same nav
+    if (res === 'annotations')
+      res = 'logs'
+
+    return res
+  })()
+  const isActive = href.toLowerCase().split('/')?.pop() === formattedSegment
   const NavIcon = isActive ? iconMap.selected : iconMap.normal
 
   return (
@@ -45,7 +55,7 @@ export default function NavLink({
         )}
         aria-hidden="true"
       />
-      {name}
+      {mode === 'expand' && name}
     </Link>
   )
 }

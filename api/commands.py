@@ -8,6 +8,8 @@ import time
 import uuid
 
 import click
+import qdrant_client
+from qdrant_client.http.models import TextIndexParams, TextIndexType, TokenizerType
 from tqdm import tqdm
 from flask import current_app, Flask
 from langchain.embeddings import OpenAIEmbeddings
@@ -26,7 +28,7 @@ from extensions.ext_database import db
 from libs.rsa import generate_key_pair
 from models.account import InvitationCode, Tenant, TenantAccountJoin
 from models.dataset import Dataset, DatasetQuery, Document, DatasetCollectionBinding
-from models.model import Account, AppModelConfig, App
+from models.model import Account, AppModelConfig, App, MessageAnnotation, Message
 import secrets
 import base64
 
@@ -484,6 +486,38 @@ def normalization_collections():
     click.echo(click.style('Congratulations! restore {} dataset indexes.'.format(len(normalization_count)), fg='green'))
 
 
+@click.command('add-qdrant-full-text-index', help='add qdrant full text index')
+def add_qdrant_full_text_index():
+    click.echo(click.style('Start add full text index.', fg='green'))
+    binds = db.session.query(DatasetCollectionBinding).all()
+    if binds and current_app.config['VECTOR_STORE'] == 'qdrant':
+        qdrant_url = current_app.config['QDRANT_URL']
+        qdrant_api_key = current_app.config['QDRANT_API_KEY']
+        client = qdrant_client.QdrantClient(
+            qdrant_url,
+            api_key=qdrant_api_key,  # For Qdrant Cloud, None for local instance
+        )
+        for bind in binds:
+            try:
+                text_index_params = TextIndexParams(
+                    type=TextIndexType.TEXT,
+                    tokenizer=TokenizerType.MULTILINGUAL,
+                    min_token_len=2,
+                    max_token_len=20,
+                    lowercase=True
+                )
+                client.create_payload_index(bind.collection_name, 'page_content',
+                                            field_schema=text_index_params)
+            except Exception as e:
+                click.echo(
+                    click.style('Create full text index error: {} {}'.format(e.__class__.__name__, str(e)),
+                                fg='red'))
+            click.echo(
+                click.style(
+                    'Congratulations! add collection {} full text index successful.'.format(bind.collection_name),
+                    fg='green'))
+
+
 def deal_dataset_vector(flask_app: Flask, dataset: Dataset, normalization_count: list):
     with flask_app.app_context():
         try:
@@ -648,6 +682,100 @@ def update_app_model_configs(batch_size):
             pbar.update(len(data_batch))
 
 
+@click.command('migrate_default_input_to_dataset_query_variable')
+@click.option("--batch-size", default=500, help="Number of records to migrate in each batch.")
+def migrate_default_input_to_dataset_query_variable(batch_size):
+    click.secho("Starting...", fg='green')
+
+    total_records = db.session.query(AppModelConfig) \
+        .join(App, App.app_model_config_id == AppModelConfig.id) \
+        .filter(App.mode == 'completion') \
+        .filter(AppModelConfig.dataset_query_variable == None) \
+        .count()
+
+    if total_records == 0:
+        click.secho("No data to migrate.", fg='green')
+        return
+
+    num_batches = (total_records + batch_size - 1) // batch_size
+
+    with tqdm(total=total_records, desc="Migrating Data") as pbar:
+        for i in range(num_batches):
+            offset = i * batch_size
+            limit = min(batch_size, total_records - offset)
+
+            click.secho(f"Fetching batch {i + 1}/{num_batches} from source database...", fg='green')
+
+            data_batch = db.session.query(AppModelConfig) \
+                .join(App, App.app_model_config_id == AppModelConfig.id) \
+                .filter(App.mode == 'completion') \
+                .filter(AppModelConfig.dataset_query_variable == None) \
+                .order_by(App.created_at) \
+                .offset(offset).limit(limit).all()
+
+            if not data_batch:
+                click.secho("No more data to migrate.", fg='green')
+                break
+
+            try:
+                click.secho(f"Migrating {len(data_batch)} records...", fg='green')
+                for data in data_batch:
+                    config = AppModelConfig.to_dict(data)
+
+                    tools = config["agent_mode"]["tools"]
+                    dataset_exists = "dataset" in str(tools)
+                    if not dataset_exists:
+                        continue
+
+                    user_input_form = config.get("user_input_form", [])
+                    for form in user_input_form:
+                        paragraph = form.get('paragraph')
+                        if paragraph \
+                                and paragraph.get('variable') == 'query':
+                            data.dataset_query_variable = 'query'
+                            break
+
+                        if paragraph \
+                                and paragraph.get('variable') == 'default_input':
+                            data.dataset_query_variable = 'default_input'
+                            break
+
+                db.session.commit()
+
+            except Exception as e:
+                click.secho(f"Error while migrating data: {e}, app_id: {data.app_id}, app_model_config_id: {data.id}",
+                            fg='red')
+                continue
+
+            click.secho(f"Successfully migrated batch {i + 1}/{num_batches}.", fg='green')
+
+            pbar.update(len(data_batch))
+
+
+@click.command('add-annotation-question-field-value', help='add annotation question value')
+def add_annotation_question_field_value():
+    click.echo(click.style('Start add annotation question value.', fg='green'))
+    message_annotations = db.session.query(MessageAnnotation).all()
+    message_annotation_deal_count = 0
+    if message_annotations:
+        for message_annotation in message_annotations:
+            try:
+                if message_annotation.message_id and not message_annotation.question:
+                    message = db.session.query(Message).filter(
+                        Message.id == message_annotation.message_id
+                    ).first()
+                    message_annotation.question = message.query
+                    db.session.add(message_annotation)
+                    db.session.commit()
+                    message_annotation_deal_count += 1
+            except Exception as e:
+                click.echo(
+                    click.style('Add annotation question value error: {} {}'.format(e.__class__.__name__, str(e)),
+                                fg='red'))
+            click.echo(
+                click.style(f'Congratulations! add annotation question value successful. Deal count {message_annotation_deal_count}', fg='green'))
+
+
 def register_commands(app):
     app.cli.add_command(reset_password)
     app.cli.add_command(reset_email)
@@ -660,3 +788,6 @@ def register_commands(app):
     app.cli.add_command(update_qdrant_indexes)
     app.cli.add_command(update_app_model_configs)
     app.cli.add_command(normalization_collections)
+    app.cli.add_command(migrate_default_input_to_dataset_query_variable)
+    app.cli.add_command(add_qdrant_full_text_index)
+    app.cli.add_command(add_annotation_question_field_value)

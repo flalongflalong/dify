@@ -108,6 +108,15 @@ const Form: FC<FormProps> = ({
       )
         extraValue.task_type = 'text-generation'
 
+      if (
+        (
+          (k === 'model_type' && v === 'chat' && value.huggingfacehub_api_type === 'inference_endpoints')
+          || (k === 'huggingfacehub_api_type' && v === 'inference_endpoints' && value.model_type === 'chat')
+        )
+        && modelModal?.key === ProviderEnum.huggingface_hub
+      )
+        extraValue.task_type = 'question-answer'
+
       handleMultiFormChange({ ...value, [k]: v, ...extraValue }, k)
     }
   }
@@ -141,15 +150,16 @@ const Form: FC<FormProps> = ({
 
     if (field.type === 'radio') {
       const options = typeof field.options === 'function' ? field.options(value) : field.options
+
       return (
         <div key={field.key} className='py-3'>
           <div className={nameClassName}>{field.label[locale]}</div>
-          <div className='grid grid-cols-2 gap-3'>
+          <div className={`grid grid-cols-${options?.length} gap-3`}>
             {
               options?.map(option => (
                 <div
                   className={`
-                    flex items-center px-3 h-9 rounded-lg border border-gray-100 bg-gray-25 cursor-pointer
+                    flex items-center px-3 py-2 rounded-lg border border-gray-100 bg-gray-25 cursor-pointer
                     ${value?.[field.key] === option.key && 'bg-white border-[1.5px] border-primary-400 shadow-sm'}
                   `}
                   onClick={() => handleFormChange(field.key, option.key)}

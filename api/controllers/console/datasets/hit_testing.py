@@ -1,8 +1,8 @@
 import logging
 
 from flask_login import current_user
-from core.login.login import login_required
-from flask_restful import Resource, reqparse, marshal, fields
+from libs.login import login_required
+from flask_restful import Resource, reqparse, marshal
 from werkzeug.exceptions import InternalServerError, NotFound, Forbidden
 
 import services
@@ -14,47 +14,9 @@ from controllers.console.setup import setup_required
 from controllers.console.wraps import account_initialization_required
 from core.model_providers.error import ProviderTokenNotInitError, QuotaExceededError, ModelCurrentlyNotSupportError, \
     LLMBadRequestError
-from libs.helper import TimestampField
+from fields.hit_testing_fields import hit_testing_record_fields
 from services.dataset_service import DatasetService
 from services.hit_testing_service import HitTestingService
-
-document_fields = {
-    'id': fields.String,
-    'data_source_type': fields.String,
-    'name': fields.String,
-    'doc_type': fields.String,
-}
-
-segment_fields = {
-    'id': fields.String,
-    'position': fields.Integer,
-    'document_id': fields.String,
-    'content': fields.String,
-    'answer': fields.String,
-    'word_count': fields.Integer,
-    'tokens': fields.Integer,
-    'keywords': fields.List(fields.String),
-    'index_node_id': fields.String,
-    'index_node_hash': fields.String,
-    'hit_count': fields.Integer,
-    'enabled': fields.Boolean,
-    'disabled_at': TimestampField,
-    'disabled_by': fields.String,
-    'status': fields.String,
-    'created_by': fields.String,
-    'created_at': TimestampField,
-    'indexing_at': TimestampField,
-    'completed_at': TimestampField,
-    'error': fields.String,
-    'stopped_at': TimestampField,
-    'document': fields.Nested(document_fields),
-}
-
-hit_testing_record_fields = {
-    'segment': fields.Nested(segment_fields),
-    'score': fields.Float,
-    'tsne_position': fields.Raw
-}
 
 
 class HitTestingApi(Resource):
@@ -80,19 +42,18 @@ class HitTestingApi(Resource):
 
         parser = reqparse.RequestParser()
         parser.add_argument('query', type=str, location='json')
+        parser.add_argument('retrieval_model', type=dict, required=False, location='json')
         args = parser.parse_args()
 
-        query = args['query']
-
-        if not query or len(query) > 250:
-            raise ValueError('Query is required and cannot exceed 250 characters')
+        HitTestingService.hit_testing_args_check(args)
 
         try:
             response = HitTestingService.retrieve(
                 dataset=dataset,
-                query=query,
+                query=args['query'],
                 account=current_user,
-                limit=10,
+                retrieval_model=args['retrieval_model'],
+                limit=10
             )
 
             return {"query": response['query'], 'records': marshal(response['records'], hit_testing_record_fields)}
@@ -106,7 +67,7 @@ class HitTestingApi(Resource):
             raise ProviderModelCurrentlyNotSupportError()
         except LLMBadRequestError:
             raise ProviderNotInitializeError(
-                f"No Embedding Model available. Please configure a valid provider "
+                f"No Embedding Model or Reranking Model available. Please configure a valid provider "
                 f"in the Settings -> Model Provider.")
         except ValueError as e:
             raise ValueError(str(e))

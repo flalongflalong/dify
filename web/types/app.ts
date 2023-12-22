@@ -1,3 +1,5 @@
+import type { AnnotationReplyConfig, ChatPromptConfig, CompletionPromptConfig, DatasetConfigs, PromptMode } from '@/models/debug.ts'
+import type { ExternalDataTool } from '@/models/common'
 export enum ProviderType {
   openai = 'openai',
   anthropic = 'anthropic',
@@ -12,6 +14,24 @@ export enum ProviderType {
 export enum AppType {
   'chat' = 'chat',
   'completion' = 'completion',
+}
+
+export enum ModelModeType {
+  'chat' = 'chat',
+  'completion' = 'completion',
+  'unset' = '',
+}
+
+export enum RETRIEVE_TYPE {
+  oneWay = 'single',
+  multiWay = 'multiple',
+}
+
+export enum RETRIEVE_METHOD {
+  semantic = 'semantic_search',
+  fullText = 'full_text_search',
+  hybrid = 'hybrid_search',
+  invertedIndex = 'invertedIndex',
 }
 
 export type VariableInput = {
@@ -89,7 +109,11 @@ export type ToolItem = {
 export type ModelConfig = {
   opening_statement: string
   pre_prompt: string
+  prompt_type: PromptMode
+  chat_prompt_config: ChatPromptConfig | {}
+  completion_prompt_config: CompletionPromptConfig | {}
   user_input_form: UserInputFormItem[]
+  dataset_query_variable?: string
   more_like_this: {
     enabled: boolean
   }
@@ -102,6 +126,11 @@ export type ModelConfig = {
   retriever_resource: {
     enabled: boolean
   }
+  sensitive_word_avoidance: {
+    enabled: boolean
+  }
+  external_data_tools: ExternalDataTool[]
+  annotation_reply?: AnnotationReplyConfig
   agent_mode: {
     enabled: boolean
     tools: ToolItem[]
@@ -111,6 +140,7 @@ export type ModelConfig = {
     provider: string
     /** Model name, e.g, gpt-3.5.turbo */
     name: string
+    mode: ModelModeType
     /** Default Completion call parameters */
     completion_params: {
       /** Maximum number of tokens in the answer message returned by Completion */
@@ -158,6 +188,11 @@ export type ModelConfig = {
       frequency_penalty: number
     }
   }
+  dataset_configs: DatasetConfigs
+  file_upload?: {
+    image: VisionSettings
+  }
+  files?: VisionFile[]
 }
 
 export const LanguagesSupported = ['zh-Hans', 'en-US'] as const
@@ -250,4 +285,56 @@ export type AppTemplate = {
   mode: AppMode
   /** Model */
   model_config: ModelConfig
+}
+
+export enum Resolution {
+  low = 'low',
+  high = 'high',
+}
+
+export enum TransferMethod {
+  all = 'all',
+  local_file = 'local_file',
+  remote_url = 'remote_url',
+}
+
+export const ALLOW_FILE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+
+export type VisionSettings = {
+  enabled: boolean
+  number_limits: number
+  detail: Resolution
+  transfer_methods: TransferMethod[]
+  image_file_size_limit?: number | string
+}
+
+export type ImageFile = {
+  type: TransferMethod
+  _id: string
+  fileId: string
+  file?: File
+  progress: number
+  url: string
+  base64Url?: string
+  deleted?: boolean
+}
+
+export type VisionFile = {
+  id?: string
+  type: string
+  transfer_method: TransferMethod
+  url: string
+  upload_file_id: string
+}
+
+export type RetrievalConfig = {
+  search_method: RETRIEVE_METHOD
+  reranking_enable: boolean
+  reranking_model: {
+    reranking_provider_name: string
+    reranking_model_name: string
+  }
+  top_k: number
+  score_threshold_enabled: boolean
+  score_threshold: number
 }

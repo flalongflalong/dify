@@ -5,6 +5,25 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 
 可用于大部分场景的对话型应用，采用一问一答模式与用户持续对话。要开始一个对话请调用 chat-messages 接口，通过继续传入返回的 conversation_id 可持续保持该会话。**[开始前请阅读 !! 什么是 Bearer Token ？](https://swagger.io/docs/specification/authentication/bearer-authentication/)**
 
+<div>
+  ### 鉴权
+
+  Dify Service API 使用 `API-Key` 进行鉴权。
+
+  建议开发者把 `API-Key` 放在后端存储，而非分享或者放在客户端存储，以免 `API-Key` 泄露，导致财产损失。
+
+  所有 API 请求都应在 **`Authorization`** HTTP Header 中包含您的 `API-Key`，如下所示：
+
+  <CodeGroup title="Code">
+    ```javascript
+      Authorization: Bearer {API_KEY}
+
+    ```
+  </CodeGroup>
+</div>
+
+---
+
 <Heading
   url='/chat-messages'
   method='POST'
@@ -43,6 +62,15 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
       <Property name='user' type='string' key='user'>
         用户标识，由开发者定义规则，需保证用户标识在应用内唯一。
       </Property>
+      <Property name='files' type='array[object]' key='files'>
+          上传的文件。
+          - `type` 文件类型:目前仅支持 `image`。
+          - `transfer_method` 传递方式:
+            - `remote_url`: 图片地址。
+            - `local_file`: 上传文件。
+          - `upload_file_id` 上传文件 ID。`transfer_method` 为 `local_file` 时必填。
+          - `url` 图片地址。`transfer_method` 为 `remote_url` 时必填。
+      </Property>
     </Properties>
   </Col>
   <Col sticky>
@@ -50,7 +78,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="POST" label="/chat-messages" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/chat-messages' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{\n    "inputs": ${JSON.stringify(props.inputs)},\n    "query": "eh",\n    "response_mode": "streaming",\n    "conversation_id": "",\n    "user": "abc-123"\n}'\n`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request POST 'https://cloud.langgenius.dev/api/chat-messages' \
+    curl --location --request POST '${props.appDetail.api_base_url}/chat-messages' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
     --header 'Content-Type: application/json' \
     --data-raw '{
@@ -119,7 +147,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="POST" label="/messages/{message_id}/feedbacks" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/messages/{message_id}/feedbacks \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{\n    "rating": "like",\n    "user": "abc-123"\n}'`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request POST 'https://cloud.langgenius.dev/api/messages/{message_id}/feedbacks' \
+    curl --location --request POST '${props.appDetail.api_base_url}/messages/{message_id}/feedbacks' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
     --header 'Content-Type: application/json' \
     --data-raw '{
@@ -148,6 +176,54 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
           "id": "hSIhXBhNe8X1d8Et"
           // ...
         }
+      ]
+    }
+    ```
+    </CodeGroup>
+  </Col>
+</Row>
+
+---
+
+<Heading
+  url='/messages/{message_id}/suggested'
+  method='GET'
+  title='消息下一步问题建议'
+  name='#suggested'
+/>
+<Row>
+  <Col>
+    获取针对当前问题的下一步问题建议
+
+    ### Path Params
+
+    <Properties>
+      <Property name='message_id' type='string' key='message_id'>
+        消息 ID
+      </Property>
+    </Properties>
+  </Col>
+  <Col sticky>
+
+    <CodeGroup title="Request" tag="GET" label="/messages/{message_id}/suggested" targetCode={`curl --location --request GET '${props.appDetail.api_base_url}/messages/{message_id}/suggested' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json'`}>
+
+    ```bash {{ title: 'cURL' }}
+    curl --location --request GET '${props.appDetail.api_base_url}/messages/{message_id}/suggested' \
+    --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
+    --header 'Content-Type: application/json' \
+    ```
+
+    </CodeGroup>
+
+    <CodeGroup title="Response">
+    ```json {{ title: 'Response' }}
+    {
+      "result": "success",
+      "data": [
+            "a",
+            "b",
+            "c"
+        ]
       ]
     }
     ```
@@ -189,7 +265,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="GET" label="/messages" targetCode={`curl --location --request GET '${props.appDetail.api_base_url}/messages?user=abc-123&conversation_id=' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request GET 'https://cloud.langgenius.dev/api/messages?user=abc-123&conversation_id='
+    curl --location --request GET '${props.appDetail.api_base_url}/messages?user=abc-123&conversation_id='
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'
     ```
 
@@ -251,7 +327,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="GET" label="/conversations" targetCode={`curl --location --request GET '${props.appDetail.api_base_url}/conversations?user=abc-123&last_id=&limit=20'\\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request GET 'https://cloud.langgenius.dev/api/conversations?user=abc-123&last_id=&limit=20' \
+    curl --location --request GET '${props.appDetail.api_base_url}/conversations?user=abc-123&last_id=&limit=20' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'
     ```
 
@@ -287,7 +363,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 ---
 
 <Heading
-  url='/conversations/{converation_id}/name'
+  url='/conversations/{conversation_id}/name'
   method='POST'
   title='会话重命名'
   name='#rename'
@@ -309,10 +385,10 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
   </Col>
   <Col sticky>
 
-    <CodeGroup title="Request" tag="POST" label="/conversations/{converation_id}/name" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/conversations/name' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{ \n "name": "", \n "user": "abc-123"\n}'`}>
+    <CodeGroup title="Request" tag="POST" label="/conversations/{conversation_id}/name" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/conversations/name' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{ \n "name": "", \n "user": "abc-123"\n}'`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request POST 'https://cloud.langgenius.dev/api/conversations/{converation_id}/name' \
+    curl --location --request POST '${props.appDetail.api_base_url}/conversations/{conversation_id}/name' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
     --header 'Content-Type: application/json' \
     --data-raw '{
@@ -336,7 +412,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 ---
 
 <Heading
-  url='/conversations/{converation_id}'
+  url='/conversations/{conversation_id}'
   method='DELETE'
   title='删除会话'
   name='#delete'
@@ -355,10 +431,10 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
   </Col>
   <Col sticky>
 
-    <CodeGroup title="Request" tag="DELETE" label="/conversations/{converation_id}" targetCode={`curl --location --request DELETE '${props.appDetail.api_base_url}/conversations/{conversation_id}' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{ \n "user": "abc-123"\n}'`}>
+    <CodeGroup title="Request" tag="DELETE" label="/conversations/{conversation_id}" targetCode={`curl --location --request DELETE '${props.appDetail.api_base_url}/conversations/{conversation_id}' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{ \n "user": "abc-123"\n}'`}>
 
     ```bash {{ title: 'cURL' }}
-        curl --location --request DELETE 'https://cloud.langgenius.dev/api/conversations/{convsation_id}' \
+        curl --location --request DELETE '${props.appDetail.api_base_url}/conversations/{convsation_id}' \
         --header 'Content-Type: application/json' \
         --header 'Accept: application/json' \
         --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
@@ -382,6 +458,57 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 ---
 
 <Heading
+  url='/files/upload'
+  method='POST'
+  title='上传文件'
+  name='#files-upload'
+/>
+<Row>
+  <Col>
+    上传文件到服务器，供文本生成、对话使用。上传的文件仅供当前终端用户使用。
+
+    ### Request Body
+    请求方式为 `multipart/form-data`。
+    <Properties>
+      <Property name='file' type='file' key='file'>
+        要上传的文件。目前支持 png, jpg, jpeg, webp, gif 格式文件。
+      </Property>
+      <Property name='user' type='string' key='user'>
+        用户标识，由开发者定义规则，需保证用户标识在应用内唯一。
+      </Property>
+    </Properties>
+  </Col>
+  <Col sticky>
+
+    <CodeGroup title="Request" tag="POST" label="/files/upload" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/files/upload' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--form 'file=@localfile;type=image/[png|jpeg|jpg|webp|gif] \\\n--form 'user=abc-123'`}>
+
+    ```bash {{ title: 'cURL' }}
+    curl --location --request POST '${props.appDetail.api_base_url}/files/upload' \
+    --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
+    --form 'file=@"/path/to/file"'
+    ```
+
+    </CodeGroup>
+
+    <CodeGroup title="Response">
+    ```json {{ title: 'Response' }}
+    {
+      "id": "72fa9618-8f89-4a37-9b33-7e1178a24a67",  
+      "name": "example.png",
+      "size": 1024,
+      "extension": "png",
+      "mime_type": "image/png",
+      "created_by": 123,  
+      "created_at": 1577836800,
+    }
+    ```
+    </CodeGroup>
+  </Col>
+</Row>
+
+---
+
+<Heading
   url='/audio-to-text'
   method='POST'
   title='语音转文字'
@@ -395,7 +522,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 
     <Properties>
       <Property name='file' type='file' key='file'>
-        语音文件。    
+        语音文件。
         文件上传当前限制为 15 MB，并且支持以下输入文件类型：mp3、mp4、mpeg、mpga、m4a、wav 和 webm。
       </Property>
     </Properties>
@@ -405,7 +532,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="POST" label="/audio-to-text" targetCode={`curl --location --request POST '${props.appDetail.api_base_url}/audio-to-text' \\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \\\n--form 'file=@localfile;type=audio/[mp3|mp4|mpeg|mpga|m4a|wav|webm]`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request POST 'https://cloud.langgenius.dev/api/conversations/name' \
+    curl --location --request POST '${props.appDetail.api_base_url}/conversations/name' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
     --form 'file=@localfile;type=audio/mp3'
     ```
@@ -432,7 +559,9 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
 />
 <Row>
   <Col>
-    获取已配置的 Input 参数，包括变量名、字段名称、类型与默认值。通常用于客户端加载后显示这些字段的表单或填入默认值。
+    内容包括：
+    1. 已配置的 Input 参数，包括变量名、字段名称、类型与默认值。通常用于客户端加载后显示这些字段的表单或填入默认值。
+    2. 上传图片的配置，包括是否开启上传图片，上传图片的数量和上传方式。注意：这个配置只有使用支持多模态的模型时才会生效。
 
     ### Query
 
@@ -447,7 +576,7 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     <CodeGroup title="Request" tag="GET" label="/parameters" targetCode={` curl --location --request GET '${props.appDetail.api_base_url}/parameters'\\\n--header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'`}>
 
     ```bash {{ title: 'cURL' }}
-    curl --location --request GET 'https://cloud.langgenius.dev/api/parameters?user=abc-123' \
+    curl --location --request GET '${props.appDetail.api_base_url}/parameters?user=abc-123' \
     --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY'
     ```
 
@@ -457,19 +586,30 @@ import { Row, Col, Properties, Property, Heading, SubProperty } from '../md.tsx'
     ```json {{ title: 'Response' }}
     {
       "introduction": "nice to meet you",
-      "variables": [
+      "user_input_form": [
         {
-          "key": "book",
-          "name": "book",
-          "description": null,
-          "type": "string",
-          "default": null,
-          "options": null
-        },
+          "text-input": {
+            "label": "a",
+            "variable": "a",
+            "required": true,
+            "max_length": 48,
+            "default": ""
+          }
+        }
         {
           // ...
         }
-      ]
+      ],
+      "file_upload": {
+        "image": {
+          "enabled": true,
+          "number_limits": 3,
+          "transfer_methods": [
+            "remote_url",
+            "local_file"
+          ]
+        }
+      }
     }
     ```
     </CodeGroup>

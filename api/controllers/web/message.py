@@ -22,6 +22,7 @@ from services.errors.app import MoreLikeThisDisabledError
 from services.errors.conversation import ConversationNotExistsError
 from services.errors.message import MessageNotExistsError, SuggestedQuestionsAfterAnswerDisabledError
 from services.message_service import MessageService
+from fields.conversation_fields import message_file_fields
 
 
 class MessageListApi(WebApiResource):
@@ -54,6 +55,7 @@ class MessageListApi(WebApiResource):
         'inputs': fields.Raw,
         'query': fields.String,
         'answer': fields.String,
+        'message_files': fields.List(fields.Nested(message_file_fields), attribute='files'),
         'feedback': fields.Nested(feedback_fields, attribute='user_feedback', allow_null=True),
         'retriever_resources': fields.List(fields.Nested(retriever_resource_fields)),
         'created_at': TimestampField
@@ -115,7 +117,7 @@ class MessageMoreLikeThisApi(WebApiResource):
         streaming = args['response_mode'] == 'streaming'
 
         try:
-            response = CompletionService.generate_more_like_this(app_model, end_user, message_id, streaming)
+            response = CompletionService.generate_more_like_this(app_model, end_user, message_id, streaming, 'web_app')
             return compact_response(response)
         except MessageNotExistsError:
             raise NotFound("Message Not Exists.")
@@ -137,7 +139,7 @@ class MessageMoreLikeThisApi(WebApiResource):
             raise InternalServerError()
 
 
-def compact_response(response: Union[dict | Generator]) -> Response:
+def compact_response(response: Union[dict, Generator]) -> Response:
     if isinstance(response, dict):
         return Response(response=json.dumps(response), status=200, mimetype='application/json')
     else:

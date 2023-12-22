@@ -1,6 +1,6 @@
 import { API_PREFIX, IS_CE_EDITION, PUBLIC_API_PREFIX } from '@/config'
 import Toast from '@/app/components/base/toast'
-import type { MessageEnd, ThoughtItem } from '@/app/components/app/chat/type'
+import type { AnnotationReply, MessageEnd, MessageReplace, ThoughtItem } from '@/app/components/app/chat/type'
 
 const TIME_OUT = 100000
 
@@ -33,6 +33,8 @@ export type IOnDataMoreInfo = {
 export type IOnData = (message: string, isFirstMessage: boolean, moreInfo: IOnDataMoreInfo) => void
 export type IOnThought = (though: ThoughtItem) => void
 export type IOnMessageEnd = (messageEnd: MessageEnd) => void
+export type IOnMessageReplace = (messageReplace: MessageReplace) => void
+export type IOnAnnotationReply = (messageReplace: AnnotationReply) => void
 export type IOnCompleted = (hasError?: boolean) => void
 export type IOnError = (msg: string, code?: string) => void
 
@@ -44,6 +46,8 @@ type IOtherOptions = {
   onData?: IOnData // for stream
   onThought?: IOnThought
   onMessageEnd?: IOnMessageEnd
+  onMessageReplace?: IOnMessageReplace
+  onAnnotationReply?: IOnAnnotationReply
   onError?: IOnError
   onCompleted?: IOnCompleted // for stream
   getAbortController?: (abortController: AbortController) => void
@@ -77,7 +81,7 @@ export function format(text: string) {
   return res.replaceAll('\n', '<br/>').replaceAll('```', '')
 }
 
-const handleStream = (response: Response, onData: IOnData, onCompleted?: IOnCompleted, onThought?: IOnThought, onMessageEnd?: IOnMessageEnd) => {
+const handleStream = (response: Response, onData: IOnData, onCompleted?: IOnCompleted, onThought?: IOnThought, onMessageEnd?: IOnMessageEnd, onMessageReplace?: IOnMessageReplace, onAnnotationReply?: IOnAnnotationReply) => {
   if (!response.ok)
     throw new Error('Network response was not ok')
 
@@ -134,6 +138,12 @@ const handleStream = (response: Response, onData: IOnData, onCompleted?: IOnComp
             }
             else if (bufferObj.event === 'message_end') {
               onMessageEnd?.(bufferObj as MessageEnd)
+            }
+            else if (bufferObj.event === 'message_replace') {
+              onMessageReplace?.(bufferObj as MessageReplace)
+            }
+            else if (bufferObj.event === 'annotation') {
+              onAnnotationReply?.(bufferObj as AnnotationReply)
             }
           }
         })
@@ -232,29 +242,24 @@ const baseFetch = <T>(
             switch (res.status) {
               case 401: {
                 if (isPublicAPI) {
-                  Toast.notify({ type: 'error', message: 'Invalid token' })
-                  return bodyJson.then((data: T) => Promise.reject(data))
+                  return bodyJson.then((data: ResponseError) => {
+                    Toast.notify({ type: 'error', message: data.message })
+                    return Promise.reject(data)
+                  })
                 }
                 const loginUrl = `${globalThis.location.origin}/signin`
-                if (IS_CE_EDITION) {
-                  bodyJson.then((data: ResponseError) => {
-                    if (data.code === 'not_setup') {
-                      globalThis.location.href = `${globalThis.location.origin}/install`
-                    }
-                    else {
-                      if (location.pathname === '/signin') {
-                        bodyJson.then((data: ResponseError) => {
-                          Toast.notify({ type: 'error', message: data.message })
-                        })
-                      }
-                      else {
-                        globalThis.location.href = loginUrl
-                      }
-                    }
-                  })
-                  return Promise.reject(Error('Unauthorized'))
-                }
-                globalThis.location.href = loginUrl
+                bodyJson.then((data: ResponseError) => {
+                  if (data.code === 'not_setup' && IS_CE_EDITION)
+                    globalThis.location.href = `${globalThis.location.origin}/install`
+                  else if (location.pathname !== '/signin' || !IS_CE_EDITION)
+                    globalThis.location.href = loginUrl
+                  else
+                    Toast.notify({ type: 'error', message: data.message })
+                }).catch(() => {
+                  // Handle any other errors
+                  globalThis.location.href = loginUrl
+                })
+
                 break
               }
               case 403:
@@ -292,12 +297,30 @@ const baseFetch = <T>(
   ]) as Promise<T>
 }
 
-export const upload = (options: any): Promise<any> => {
+export const upload = (options: any, isPublicAPI?: boolean, url?: string): Promise<any> => {
+  const urlPrefix = isPublicAPI ? PUBLIC_API_PREFIX : API_PREFIX
+  let token = ''
+  if (isPublicAPI) {
+    const sharedToken = globalThis.location.pathname.split('/').slice(-1)[0]
+    const accessToken = localStorage.getItem('token') || JSON.stringify({ [sharedToken]: '' })
+    let accessTokenJson = { [sharedToken]: '' }
+    try {
+      accessTokenJson = JSON.parse(accessToken)
+    }
+    catch (e) {
+
+    }
+    token = accessTokenJson[sharedToken]
+  }
+  else {
+    const accessToken = localStorage.getItem('console_token') || ''
+    token = accessToken
+  }
   const defaultOptions = {
     method: 'POST',
-    url: `${API_PREFIX}/files/upload`,
+    url: url ? `${urlPrefix}${url}` : `${urlPrefix}/files/upload`,
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('console_token') || ''}`,
+      Authorization: `Bearer ${token}`,
     },
     data: {},
   }
@@ -327,7 +350,7 @@ export const upload = (options: any): Promise<any> => {
   })
 }
 
-export const ssePost = (url: string, fetchOptions: FetchOptionType, { isPublicAPI = false, onData, onCompleted, onThought, onMessageEnd, onError, getAbortController }: IOtherOptions) => {
+export const ssePost = (url: string, fetchOptions: FetchOptionType, { isPublicAPI = false, onData, onCompleted, onThought, onMessageEnd, onMessageReplace, onAnnotationReply, onError, getAbortController }: IOtherOptions) => {
   const abortController = new AbortController()
 
   const options = Object.assign({}, baseOptions, {
@@ -366,7 +389,7 @@ export const ssePost = (url: string, fetchOptions: FetchOptionType, { isPublicAP
           return
         }
         onData?.(str, isFirstMessage, moreInfo)
-      }, onCompleted, onThought, onMessageEnd)
+      }, onCompleted, onThought, onMessageEnd, onMessageReplace, onAnnotationReply)
     }).catch((e) => {
       if (e.toString() !== 'AbortError: The user aborted a request.')
         Toast.notify({ type: 'error', message: e })

@@ -17,7 +17,9 @@ export type ConfirmCommonProps = {
   onConfirm?: () => void
   showOperate?: boolean
   showOperateCancel?: boolean
+  confirmBtnClassName?: string
   confirmText?: string
+  confirmWrapperClassName?: string
 }
 
 const ConfirmCommon: FC<ConfirmCommonProps> = ({
@@ -29,7 +31,9 @@ const ConfirmCommon: FC<ConfirmCommonProps> = ({
   onConfirm,
   showOperate = true,
   showOperateCancel = true,
+  confirmBtnClassName,
   confirmText,
+  confirmWrapperClassName,
 }) => {
   const { t } = useTranslation()
 
@@ -45,7 +49,7 @@ const ConfirmCommon: FC<ConfirmCommonProps> = ({
   }
 
   return (
-    <Modal isShow={isShow} onClose={() => {}} className='!w-[480px] !max-w-[480px] !p-0 !rounded-2xl'>
+    <Modal isShow={isShow} onClose={() => {}} className='!w-[480px] !max-w-[480px] !p-0 !rounded-2xl' wrapperClassName={confirmWrapperClassName}>
       <div className={cn(s[`wrapper-${type}`], 'relative p-8')}>
         <div className='flex items-center justify-center absolute top-4 right-4 w-8 h-8 cursor-pointer' onClick={onCancel}>
           <XClose className='w-4 h-4 text-gray-500' />
@@ -72,7 +76,7 @@ const ConfirmCommon: FC<ConfirmCommonProps> = ({
               }
               <Button
                 type='primary'
-                className=''
+                className={confirmBtnClassName || ''}
                 onClick={onConfirm}
               >
                 {confirmText || CONFIRM_MAP[type].confirmText}

@@ -61,10 +61,19 @@ class BaseModelProvider(BaseModel, ABC):
             ProviderModel.is_valid == True
         ).order_by(ProviderModel.created_at.asc()).all()
 
-        return [{
-            'id': provider_model.model_name,
-            'name': provider_model.model_name
-        } for provider_model in provider_models]
+        provider_model_list = []
+        for provider_model in provider_models:
+            provider_model_dict = {
+                'id': provider_model.model_name,
+                'name': provider_model.model_name
+            }
+
+            if model_type == ModelType.TEXT_GENERATION:
+                provider_model_dict['mode'] = self._get_text_generation_model_mode(provider_model.model_name)
+
+            provider_model_list.append(provider_model_dict)
+
+        return provider_model_list
 
     @abstractmethod
     def _get_fixed_model_list(self, model_type: ModelType) -> list[dict]:
@@ -72,6 +81,16 @@ class BaseModelProvider(BaseModel, ABC):
         get supported model object list for use.
 
         :param model_type:
+        :return:
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_text_generation_model_mode(self, model_name) -> str:
+        """
+        get text generation model mode.
+
+        :param model_name:
         :return:
         """
         raise NotImplementedError
@@ -247,14 +266,6 @@ class BaseModelProvider(BaseModel, ABC):
             Provider.provider_name == self.provider.provider_name
         ).update({'last_used': datetime.utcnow()})
         db.session.commit()
-
-    def get_payment_info(self) -> Optional[dict]:
-        """
-        get product info if it payable.
-
-        :return:
-        """
-        return None
 
     def _get_provider_model(self, model_name: str, model_type: ModelType) -> ProviderModel:
         """

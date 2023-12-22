@@ -1,3 +1,5 @@
+import type { VisionFile } from '@/types/app'
+
 // Log type contains key:string conversation_id:string created_at:string quesiton:string answer:string
 export type Conversation = {
   id: string
@@ -29,6 +31,12 @@ export type CompletionParamsType = {
   frequency_penalty: number
 }
 
+export type LogModelConfig = {
+  name: string
+  provider: string
+  completion_params: CompletionParamsType
+}
+
 export type ModelConfigDetail = {
   introduction: string
   prompt_template: string
@@ -43,13 +51,20 @@ export type ModelConfigDetail = {
   completion_params: CompletionParamsType
 }
 
-export type Annotation = {
+export type LogAnnotation = {
   content: string
   account: {
     id: string
     name: string
     email: string
   }
+  created_at: number
+}
+
+export type Annotation = {
+  id: string
+  authorName: string
+  logAnnotation?: LogAnnotation
   created_at?: number
 }
 
@@ -65,13 +80,23 @@ export type MessageContent = {
   answer: string
   provider_response_latency: number
   created_at: number
-  annotation: Annotation
+  annotation: LogAnnotation
+  annotation_hit_history: {
+    annotation_id: string
+    annotation_create_account: {
+      id: string
+      name: string
+      email: string
+    }
+    created_at: number
+  }
   feedbacks: Array<{
     rating: 'like' | 'dislike' | null
     content: string | null
     from_source?: 'admin' | 'user'
     from_end_user_id?: string
   }>
+  message_files: VisionFile[]
 }
 
 export type CompletionConversationGeneralDetail = {
@@ -155,6 +180,7 @@ export type ChatConversationFullDetailResponse = Omit<CompletionConversationGene
     provider: string
     model_id: string
     configs: ModelConfigDetail
+    model: LogModelConfig
   }
 }
 

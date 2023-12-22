@@ -1,7 +1,6 @@
 'use client'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useBoolean } from 'ahooks'
 import AppUnavailable from '../../base/app-unavailable'
 import StepsNavBar from './steps-nav-bar'
 import StepOne from './step-one'
@@ -10,11 +9,10 @@ import StepThree from './step-three'
 import { DataSourceType } from '@/models/datasets'
 import type { DataSet, FileItem, createDocumentResponse } from '@/models/datasets'
 import { fetchDataSource } from '@/service/common'
-import { fetchDataDetail } from '@/service/datasets'
+import { fetchDatasetDetail } from '@/service/datasets'
 import type { NotionPage } from '@/models/common'
 import { useProviderContext } from '@/context/provider-context'
-
-import AccountSetting from '@/app/components/header/account-setting'
+import { useModalContext } from '@/context/modal-context'
 
 type DatasetUpdateFormProps = {
   datasetId?: string
@@ -22,9 +20,8 @@ type DatasetUpdateFormProps = {
 
 const DatasetUpdateForm = ({ datasetId }: DatasetUpdateFormProps) => {
   const { t } = useTranslation()
-  const [isShowSetAPIKey, { setTrue: showSetAPIKey, setFalse: hideSetAPIkey }] = useBoolean()
+  const { setShowAccountSettingModal } = useModalContext()
   const [hasConnection, setHasConnection] = useState(true)
-  const [isShowDataSourceSetting, { setTrue: showDataSourceSetting, setFalse: hideDataSourceSetting }] = useBoolean()
   const [dataSourceType, setDataSourceType] = useState<DataSourceType>(DataSourceType.FILE)
   const [step, setStep] = useState(1)
   const [indexingTypeCache, setIndexTypeCache] = useState('')
@@ -91,7 +88,7 @@ const DatasetUpdateForm = ({ datasetId }: DatasetUpdateFormProps) => {
     (async () => {
       if (datasetId) {
         try {
-          const detail = await fetchDataDetail(datasetId)
+          const detail = await fetchDatasetDetail(datasetId)
           setDetail(detail)
         }
         catch (e) {
@@ -106,13 +103,13 @@ const DatasetUpdateForm = ({ datasetId }: DatasetUpdateFormProps) => {
 
   return (
     <div className='flex' style={{ height: 'calc(100vh - 56px)' }}>
-      <div className="flex flex-col w-56 overflow-y-auto bg-white border-r border-gray-200 shrink-0">
+      <div className="flex flex-col w-11 sm:w-56 overflow-y-auto bg-white border-r border-gray-200 shrink-0">
         <StepsNavBar step={step} datasetId={datasetId} />
       </div>
       <div className="grow bg-white">
         {step === 1 && <StepOne
           hasConnection={hasConnection}
-          onSetting={showDataSourceSetting}
+          onSetting={() => setShowAccountSettingModal({ payload: 'data-source' })}
           datasetId={datasetId}
           dataSourceType={dataSourceType}
           dataSourceTypeDisable={!!detail?.data_source_type}
@@ -126,8 +123,8 @@ const DatasetUpdateForm = ({ datasetId }: DatasetUpdateFormProps) => {
         />}
         {(step === 2 && (!datasetId || (datasetId && !!detail))) && <StepTwo
           hasSetAPIKEY={!!embeddingsDefaultModel}
-          onSetting={showSetAPIKey}
-          indexingType={detail?.indexing_technique || ''}
+          onSetting={() => setShowAccountSettingModal({ payload: 'provider' })}
+          indexingType={detail?.indexing_technique}
           datasetId={datasetId}
           dataSourceType={dataSourceType}
           files={fileList.map(file => file.file)}
@@ -143,10 +140,6 @@ const DatasetUpdateForm = ({ datasetId }: DatasetUpdateFormProps) => {
           creationCache={result}
         />}
       </div>
-      {isShowSetAPIKey && <AccountSetting activeTab="provider" onCancel={async () => {
-        hideSetAPIkey()
-      }} />}
-      {isShowDataSourceSetting && <AccountSetting activeTab="data-source" onCancel={hideDataSourceSetting}/>}
     </div>
   )
 }

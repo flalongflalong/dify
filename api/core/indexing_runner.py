@@ -11,10 +11,11 @@ from flask import current_app, Flask
 from flask_login import current_user
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
+from sqlalchemy.orm.exc import ObjectDeletedError
 
 from core.data_loader.file_extractor import FileExtractor
 from core.data_loader.loader.notion import NotionLoader
-from core.docstore.dataset_docstore import DatesetDocumentStore
+from core.docstore.dataset_docstore import DatasetDocumentStore
 from core.generator.llm_generator import LLMGenerator
 from core.index.index import IndexBuilder
 from core.model_providers.error import ProviderTokenNotInitError
@@ -48,13 +49,13 @@ class IndexingRunner:
                 if not dataset:
                     raise ValueError("no dataset found")
 
-                # load file
-                text_docs = self._load_data(dataset_document)
-
                 # get the process rule
                 processing_rule = db.session.query(DatasetProcessRule). \
                     filter(DatasetProcessRule.id == dataset_document.dataset_process_rule_id). \
                     first()
+
+                # load file
+                text_docs = self._load_data(dataset_document)
 
                 # get splitter
                 splitter = self._get_splitter(processing_rule)
@@ -79,28 +80,14 @@ class IndexingRunner:
                 dataset_document.error = str(e.description)
                 dataset_document.stopped_at = datetime.datetime.utcnow()
                 db.session.commit()
+            except ObjectDeletedError:
+                logging.warning('Document deleted, document id: {}'.format(dataset_document.id))
             except Exception as e:
                 logging.exception("consume document failed")
                 dataset_document.indexing_status = 'error'
                 dataset_document.error = str(e)
                 dataset_document.stopped_at = datetime.datetime.utcnow()
                 db.session.commit()
-
-    def format_split_text(self, text):
-        regex = r"Q\d+:\s*(.*?)\s*A\d+:\s*([\s\S]*?)(?=Q|$)"
-        matches = re.findall(regex, text, re.MULTILINE)
-
-        result = []
-        for match in matches:
-            q = match[0]
-            a = match[1]
-            if q and a:
-                result.append({
-                    "question": q,
-                    "answer": re.sub(r"\n\s*", "\n", a.strip())
-                })
-
-        return result
 
     def run_in_splitting_status(self, dataset_document: DatasetDocument):
         """Run the indexing process when the index_status is splitting."""
@@ -119,7 +106,8 @@ class IndexingRunner:
                 document_id=dataset_document.id
             ).all()
 
-            db.session.delete(document_segments)
+            for document_segment in document_segments:
+                db.session.delete(document_segment)
             db.session.commit()
 
             # load file
@@ -276,13 +264,14 @@ class IndexingRunner:
             )
             if len(preview_texts) > 0:
                 # qa model document
-                response = LLMGenerator.generate_qa_document(current_user.current_tenant_id, preview_texts[0], doc_language)
+                response = LLMGenerator.generate_qa_document(current_user.current_tenant_id, preview_texts[0],
+                                                             doc_language)
                 document_qa_list = self.format_split_text(response)
                 return {
                     "total_segments": total_segments * 20,
                     "tokens": total_segments * 2000,
                     "total_price": '{:f}'.format(
-                        text_generation_model.calc_tokens_price(total_segments * 2000, MessageType.HUMAN)),
+                        text_generation_model.calc_tokens_price(total_segments * 2000, MessageType.USER)),
                     "currency": embedding_model.get_currency(),
                     "qa_preview": document_qa_list,
                     "preview": preview_texts
@@ -372,13 +361,14 @@ class IndexingRunner:
             )
             if len(preview_texts) > 0:
                 # qa model document
-                response = LLMGenerator.generate_qa_document(current_user.current_tenant_id, preview_texts[0], doc_language)
+                response = LLMGenerator.generate_qa_document(current_user.current_tenant_id, preview_texts[0],
+                                                             doc_language)
                 document_qa_list = self.format_split_text(response)
                 return {
                     "total_segments": total_segments * 20,
                     "tokens": total_segments * 2000,
                     "total_price": '{:f}'.format(
-                        text_generation_model.calc_tokens_price(total_segments * 2000, MessageType.HUMAN)),
+                        text_generation_model.calc_tokens_price(total_segments * 2000, MessageType.USER)),
                     "currency": embedding_model.get_currency(),
                     "qa_preview": document_qa_list,
                     "preview": preview_texts
@@ -391,7 +381,7 @@ class IndexingRunner:
             "preview": preview_texts
         }
 
-    def _load_data(self, dataset_document: DatasetDocument) -> List[Document]:
+    def _load_data(self, dataset_document: DatasetDocument, automatic: bool = False) -> List[Document]:
         # load file
         if dataset_document.data_source_type not in ["upload_file", "notion_import"]:
             return []
@@ -407,7 +397,7 @@ class IndexingRunner:
                 one_or_none()
 
             if file_detail:
-                text_docs = FileExtractor.load(file_detail)
+                text_docs = FileExtractor.load(file_detail, is_automatic=True)
         elif dataset_document.data_source_type == 'notion_import':
             loader = NotionLoader.from_document(dataset_document)
             text_docs = loader.load()
@@ -485,7 +475,7 @@ class IndexingRunner:
         )
 
         # save node to document segment
-        doc_store = DatesetDocumentStore(
+        doc_store = DatasetDocumentStore(
             dataset=dataset,
             user_id=dataset_document.created_by,
             document_id=dataset_document.id
@@ -539,6 +529,13 @@ class IndexingRunner:
                     hash = helper.generate_text_hash(document_node.page_content)
                     document_node.metadata['doc_id'] = doc_id
                     document_node.metadata['doc_hash'] = hash
+                    # delete Spliter character
+                    page_content = document_node.page_content
+                    if page_content.startswith(".") or page_content.startswith("。"):
+                        page_content = page_content[1:]
+                    else:
+                        page_content = page_content
+                    document_node.page_content = page_content
                     split_documents.append(document_node)
             all_documents.extend(split_documents)
         # processing qa document
@@ -581,7 +578,6 @@ class IndexingRunner:
                 logging.exception(e)
 
             all_qa_documents.extend(format_documents)
-
 
     def _split_to_documents_for_estimate(self, text_docs: List[Document], splitter: TextSplitter,
                                          processing_rule: DatasetProcessRule) -> List[Document]:
@@ -643,21 +639,16 @@ class IndexingRunner:
         return text
 
     def format_split_text(self, text):
-        regex = r"Q\d+:\s*(.*?)\s*A\d+:\s*([\s\S]*?)(?=Q|$)"  # 匹配Q和A的正则表达式
-        matches = re.findall(regex, text, re.MULTILINE)  # 获取所有匹配到的结果
+        regex = r"Q\d+:\s*(.*?)\s*A\d+:\s*([\s\S]*?)(?=Q\d+:|$)" 
+        matches = re.findall(regex, text, re.UNICODE)
 
-        result = []  # 存储最终的结果
-        for match in matches:
-            q = match[0]
-            a = match[1]
-            if q and a:
-                # 如果Q和A都存在，就将其添加到结果中
-                result.append({
-                    "question": q,
-                    "answer": re.sub(r"\n\s*", "\n", a.strip())
-                })
-
-        return result
+        return [
+            {
+                "question": q,
+                "answer": re.sub(r"\n\s*", "\n", a.strip())
+            }
+            for q, a in matches if q and a
+        ]
 
     def _build_index(self, dataset: Dataset, dataset_document: DatasetDocument, documents: List[Document]) -> None:
         """
@@ -734,6 +725,9 @@ class IndexingRunner:
         count = DatasetDocument.query.filter_by(id=document_id, is_paused=True).count()
         if count > 0:
             raise DocumentIsPausedException()
+        document = DatasetDocument.query.filter_by(id=document_id).first()
+        if not document:
+            raise DocumentIsDeletedPausedException()
 
         update_params = {
             DatasetDocument.indexing_status: after_indexing_status
@@ -780,4 +774,8 @@ class IndexingRunner:
 
 
 class DocumentIsPausedException(Exception):
+    pass
+
+
+class DocumentIsDeletedPausedException(Exception):
     pass

@@ -13,8 +13,8 @@ from core.model_providers.models.entity.provider import ModelFeature
 from core.model_providers.models.speech2text.openai_whisper import OpenAIWhisper
 from core.model_providers.models.base import BaseProviderModel
 from core.model_providers.models.embedding.openai_embedding import OpenAIEmbedding
-from core.model_providers.models.entity.model_params import ModelKwargsRules, KwargRule, ModelType
-from core.model_providers.models.llm.openai_model import OpenAIModel
+from core.model_providers.models.entity.model_params import ModelKwargsRules, KwargRule, ModelType, ModelMode
+from core.model_providers.models.llm.openai_model import OpenAIModel, COMPLETION_MODELS
 from core.model_providers.models.moderation.openai_moderation import OpenAIModeration
 from core.model_providers.providers.base import BaseModelProvider, CredentialsValidateFailedError
 from core.model_providers.providers.hosted import hosted_model_providers
@@ -36,17 +36,28 @@ class OpenAIProvider(BaseModelProvider):
                 {
                     'id': 'gpt-3.5-turbo',
                     'name': 'gpt-3.5-turbo',
+                    'mode': ModelMode.CHAT.value,
+                    'features': [
+                        ModelFeature.AGENT_THOUGHT.value
+                    ]
+                },
+                {
+                    'id': 'gpt-3.5-turbo-1106',
+                    'name': 'gpt-3.5-turbo-1106',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
                 },
                 {
                     'id': 'gpt-3.5-turbo-instruct',
-                    'name': 'GPT-3.5-Turbo-Instruct',
+                    'name': 'gpt-3.5-turbo-instruct',
+                    'mode': ModelMode.COMPLETION.value,
                 },
                 {
                     'id': 'gpt-3.5-turbo-16k',
                     'name': 'gpt-3.5-turbo-16k',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
@@ -54,13 +65,31 @@ class OpenAIProvider(BaseModelProvider):
                 {
                     'id': 'gpt-4',
                     'name': 'gpt-4',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
                 },
                 {
+                    'id': 'gpt-4-1106-preview',
+                    'name': 'gpt-4-1106-preview',
+                    'mode': ModelMode.CHAT.value,
+                    'features': [
+                        ModelFeature.AGENT_THOUGHT.value
+                    ]
+                },
+                {
+                    'id': 'gpt-4-vision-preview',
+                    'name': 'gpt-4-vision-preview',
+                    'mode': ModelMode.CHAT.value,
+                    'features': [
+                        ModelFeature.VISION.value
+                    ]
+                },
+                {
                     'id': 'gpt-4-32k',
                     'name': 'gpt-4-32k',
+                    'mode': ModelMode.CHAT.value,
                     'features': [
                         ModelFeature.AGENT_THOUGHT.value
                     ]
@@ -68,12 +97,13 @@ class OpenAIProvider(BaseModelProvider):
                 {
                     'id': 'text-davinci-003',
                     'name': 'text-davinci-003',
+                    'mode': ModelMode.COMPLETION.value,
                 }
             ]
 
             if self.provider.provider_type == ProviderType.SYSTEM.value \
                     and self.provider.quota_type == ProviderQuotaType.TRIAL.value:
-                models = [item for item in models if item['id'] not in ['gpt-4', 'gpt-4-32k']]
+                models = [item for item in models if not item['id'].startswith('gpt-4')]
 
             return models
         elif model_type == ModelType.EMBEDDINGS:
@@ -99,6 +129,12 @@ class OpenAIProvider(BaseModelProvider):
             ]
         else:
             return []
+
+    def _get_text_generation_model_mode(self, model_name) -> str:
+        if model_name in COMPLETION_MODELS:
+            return ModelMode.COMPLETION.value
+        else:
+            return ModelMode.CHAT.value
 
     def get_model_class(self, model_type: ModelType) -> Type[BaseProviderModel]:
         """
@@ -129,10 +165,13 @@ class OpenAIProvider(BaseModelProvider):
         :return:
         """
         model_max_tokens = {
+            'gpt-4-1106-preview': 128000,
+            'gpt-4-vision-preview': 128000,
             'gpt-4': 8192,
             'gpt-4-32k': 32768,
+            'gpt-3.5-turbo-1106': 16384,
             'gpt-3.5-turbo': 4096,
-            'gpt-3.5-turbo-instruct': 8192,
+            'gpt-3.5-turbo-instruct': 4097,
             'gpt-3.5-turbo-16k': 16384,
             'text-davinci-003': 4097,
         }
@@ -238,25 +277,10 @@ class OpenAIProvider(BaseModelProvider):
 
     def should_deduct_quota(self):
         if hosted_model_providers.openai \
-                and hosted_model_providers.openai.quota_limit and hosted_model_providers.openai.quota_limit > 0:
+                and hosted_model_providers.openai.quota_limit and hosted_model_providers.openai.quota_limit > -1:
             return True
 
         return False
-
-    def get_payment_info(self) -> Optional[dict]:
-        """
-        get payment info if it payable.
-
-        :return:
-        """
-        if hosted_model_providers.openai \
-                and hosted_model_providers.openai.paid_enabled:
-            return {
-                'product_id': hosted_model_providers.openai.paid_stripe_price_id,
-                'increase_quota': hosted_model_providers.openai.paid_increase_quota,
-            }
-
-        return None
 
     @classmethod
     def is_model_credentials_valid_or_raise(cls, model_name: str, model_type: ModelType, credentials: dict):
