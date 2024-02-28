@@ -1,28 +1,28 @@
-# -*- coding:utf-8 -*-
 import flask_restful
-from flask import request, current_app
+from flask import current_app, request
 from flask_login import current_user
+from flask_restful import Resource, marshal, marshal_with, reqparse
+from werkzeug.exceptions import Forbidden, NotFound
 
-from controllers.console.apikey import api_key_list, api_key_fields
-from core.model_runtime.entities.model_entities import ModelType
-from core.provider_manager import ProviderManager
-from libs.login import login_required
-from flask_restful import Resource, reqparse, marshal, marshal_with
-from werkzeug.exceptions import NotFound, Forbidden
 import services
 from controllers.console import api
+from controllers.console.apikey import api_key_fields, api_key_list
 from controllers.console.app.error import ProviderNotInitializeError
 from controllers.console.datasets.error import DatasetNameDuplicateError
 from controllers.console.setup import setup_required
 from controllers.console.wraps import account_initialization_required
-from core.indexing_runner import IndexingRunner
 from core.errors.error import LLMBadRequestError, ProviderTokenNotInitError
+from core.indexing_runner import IndexingRunner
+from core.model_runtime.entities.model_entities import ModelType
+from core.provider_manager import ProviderManager
+from core.rag.extractor.entity.extract_setting import ExtractSetting
+from extensions.ext_database import db
 from fields.app_fields import related_app_list
 from fields.dataset_fields import dataset_detail_fields, dataset_query_detail_fields
 from fields.document_fields import document_status_fields
-from extensions.ext_database import db
-from models.dataset import DocumentSegment, Document
-from models.model import UploadFile, ApiToken
+from libs.login import login_required
+from models.dataset import Dataset, Document, DocumentSegment
+from models.model import ApiToken, UploadFile
 from services.dataset_service import DatasetService, DocumentService
 
 
@@ -98,12 +98,13 @@ class DatasetListApi(Resource):
                             help='type is required. Name must be between 1 to 40 characters.',
                             type=_validate_name)
         parser.add_argument('indexing_technique', type=str, location='json',
-                            choices=('high_quality', 'economy'),
+                            choices=Dataset.INDEXING_TECHNIQUE_LIST,
+                            nullable=True,
                             help='Invalid indexing technique.')
         args = parser.parse_args()
 
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         try:
@@ -178,7 +179,8 @@ class DatasetApi(Resource):
                             location='json', store_missing=False,
                             type=_validate_description_length)
         parser.add_argument('indexing_technique', type=str, location='json',
-                            choices=('high_quality', 'economy'),
+                            choices=Dataset.INDEXING_TECHNIQUE_LIST,
+                            nullable=True,
                             help='Invalid indexing technique.')
         parser.add_argument('permission', type=str, location='json', choices=(
             'only_me', 'all_team_members'), help='Invalid permission.')
@@ -186,7 +188,7 @@ class DatasetApi(Resource):
         args = parser.parse_args()
 
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         dataset = DatasetService.update_dataset(
@@ -204,7 +206,7 @@ class DatasetApi(Resource):
         dataset_id_str = str(dataset_id)
 
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         if DatasetService.delete_dataset(dataset_id_str, current_user):
@@ -257,7 +259,9 @@ class DatasetIndexingEstimateApi(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('info_list', type=dict, required=True, nullable=True, location='json')
         parser.add_argument('process_rule', type=dict, required=True, nullable=True, location='json')
-        parser.add_argument('indexing_technique', type=str, required=True, nullable=True, location='json')
+        parser.add_argument('indexing_technique', type=str, required=True,
+                            choices=Dataset.INDEXING_TECHNIQUE_LIST,
+                            nullable=True, location='json')
         parser.add_argument('doc_form', type=str, default='text_model', required=False, nullable=False, location='json')
         parser.add_argument('dataset_id', type=str, required=False, nullable=False, location='json')
         parser.add_argument('doc_language', type=str, default='English', required=False, nullable=False,
@@ -265,6 +269,7 @@ class DatasetIndexingEstimateApi(Resource):
         args = parser.parse_args()
         # validate args
         DocumentService.estimate_args_validate(args)
+        extract_settings = []
         if args['info_list']['data_source_type'] == 'upload_file':
             file_ids = args['info_list']['file_info_list']['file_ids']
             file_details = db.session.query(UploadFile).filter(
@@ -275,37 +280,45 @@ class DatasetIndexingEstimateApi(Resource):
             if file_details is None:
                 raise NotFound("File not found.")
 
-            indexing_runner = IndexingRunner()
-
-            try:
-                response = indexing_runner.file_indexing_estimate(current_user.current_tenant_id, file_details,
-                                                                  args['process_rule'], args['doc_form'],
-                                                                  args['doc_language'], args['dataset_id'],
-                                                                  args['indexing_technique'])
-            except LLMBadRequestError:
-                raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
-            except ProviderTokenNotInitError as ex:
-                raise ProviderNotInitializeError(ex.description)
+            if file_details:
+                for file_detail in file_details:
+                    extract_setting = ExtractSetting(
+                        datasource_type="upload_file",
+                        upload_file=file_detail,
+                        document_model=args['doc_form']
+                    )
+                    extract_settings.append(extract_setting)
         elif args['info_list']['data_source_type'] == 'notion_import':
-
-            indexing_runner = IndexingRunner()
-
-            try:
-                response = indexing_runner.notion_indexing_estimate(current_user.current_tenant_id,
-                                                                    args['info_list']['notion_info_list'],
-                                                                    args['process_rule'], args['doc_form'],
-                                                                    args['doc_language'], args['dataset_id'],
-                                                                    args['indexing_technique'])
-            except LLMBadRequestError:
-                raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
-            except ProviderTokenNotInitError as ex:
-                raise ProviderNotInitializeError(ex.description)
+            notion_info_list = args['info_list']['notion_info_list']
+            for notion_info in notion_info_list:
+                workspace_id = notion_info['workspace_id']
+                for page in notion_info['pages']:
+                    extract_setting = ExtractSetting(
+                        datasource_type="notion_import",
+                        notion_info={
+                            "notion_workspace_id": workspace_id,
+                            "notion_obj_id": page['page_id'],
+                            "notion_page_type": page['type'],
+                            "tenant_id": current_user.current_tenant_id
+                        },
+                        document_model=args['doc_form']
+                    )
+                    extract_settings.append(extract_setting)
         else:
             raise ValueError('Data source type not support')
+        indexing_runner = IndexingRunner()
+        try:
+            response = indexing_runner.indexing_estimate(current_user.current_tenant_id, extract_settings,
+                                                         args['process_rule'], args['doc_form'],
+                                                         args['doc_language'], args['dataset_id'],
+                                                         args['indexing_technique'])
+        except LLMBadRequestError:
+            raise ProviderNotInitializeError(
+                "No Embedding Model available. Please configure a valid provider "
+                "in the Settings -> Model Provider.")
+        except ProviderTokenNotInitError as ex:
+            raise ProviderNotInitializeError(ex.description)
+
         return response, 200
 
 
@@ -388,7 +401,7 @@ class DatasetApiKeyApi(Resource):
     @marshal_with(api_key_fields)
     def post(self):
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         current_key_count = db.session.query(ApiToken). \
@@ -422,7 +435,7 @@ class DatasetApiDeleteApi(Resource):
         api_key_id = str(api_key_id)
 
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         key = db.session.query(ApiToken). \
@@ -505,4 +518,3 @@ api.add_resource(DatasetApiDeleteApi, '/datasets/api-keys/<uuid:api_key_id>')
 api.add_resource(DatasetApiBaseUrlApi, '/datasets/api-base-info')
 api.add_resource(DatasetRetrievalSettingApi, '/datasets/retrieval-setting')
 api.add_resource(DatasetRetrievalSettingMockApi, '/datasets/retrieval-setting/<string:vector_type>')
-

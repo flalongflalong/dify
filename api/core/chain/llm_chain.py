@@ -1,14 +1,14 @@
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 from langchain import LLMChain as LCLLMChain
 from langchain.callbacks.manager import CallbackManagerForChainRun
-from langchain.schema import LLMResult, Generation
+from langchain.schema import Generation, LLMResult
 from langchain.schema.language_model import BaseLanguageModel
 
 from core.agent.agent.agent_llm_callback import AgentLLMCallback
 from core.entities.application_entities import ModelConfigEntity
-from core.model_manager import ModelInstance
 from core.entities.message_entities import lc_messages_to_prompt_messages
+from core.model_manager import ModelInstance
 from core.third_party.langchain.llms.fake import FakeLLM
 
 
@@ -16,12 +16,12 @@ class LLMChain(LCLLMChain):
     model_config: ModelConfigEntity
     """The language model instance to use."""
     llm: BaseLanguageModel = FakeLLM(response="")
-    parameters: Dict[str, Any] = {}
+    parameters: dict[str, Any] = {}
     agent_llm_callback: Optional[AgentLLMCallback] = None
 
     def generate(
         self,
-        input_list: List[Dict[str, Any]],
+        input_list: list[dict[str, Any]],
         run_manager: Optional[CallbackManagerForChainRun] = None,
     ) -> LLMResult:
         """Generate LLM result from inputs."""

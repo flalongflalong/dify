@@ -1,4 +1,3 @@
-# -*- coding:utf-8 -*-
 from functools import wraps
 
 from flask import request
@@ -6,8 +5,9 @@ from flask_restful import Resource
 from werkzeug.exceptions import NotFound, Unauthorized
 
 from extensions.ext_database import db
-from models.model import App, EndUser, Site
 from libs.passport import PassportService
+from models.model import App, EndUser, Site
+
 
 def validate_jwt_token(view=None):
     def decorator(view):

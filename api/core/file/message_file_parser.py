@@ -1,12 +1,12 @@
-from typing import List, Union, Optional, Dict
+from typing import Optional, Union
 
 import requests
 
-from core.file.file_obj import FileObj, FileType, FileTransferMethod
-from core.file.upload_file_parser import SUPPORT_EXTENSIONS
+from core.file.file_obj import FileBelongsTo, FileObj, FileTransferMethod, FileType
 from extensions.ext_database import db
 from models.account import Account
-from models.model import MessageFile, EndUser, AppModelConfig, UploadFile
+from models.model import AppModelConfig, EndUser, MessageFile, UploadFile
+from services.file_service import IMAGE_EXTENSIONS
 
 
 class MessageFileParser:
@@ -15,8 +15,8 @@ class MessageFileParser:
         self.tenant_id = tenant_id
         self.app_id = app_id
 
-    def validate_and_transform_files_arg(self, files: List[dict], app_model_config: AppModelConfig,
-                                         user: Union[Account, EndUser]) -> List[FileObj]:
+    def validate_and_transform_files_arg(self, files: list[dict], app_model_config: AppModelConfig,
+                                         user: Union[Account, EndUser]) -> list[FileObj]:
         """
         validate and transform files arg
 
@@ -84,7 +84,7 @@ class MessageFileParser:
                             UploadFile.tenant_id == self.tenant_id,
                             UploadFile.created_by == user.id,
                             UploadFile.created_by_role == ('account' if isinstance(user, Account) else 'end_user'),
-                            UploadFile.extension.in_(SUPPORT_EXTENSIONS)
+                            UploadFile.extension.in_(IMAGE_EXTENSIONS)
                         ).first())
 
                         # check upload file is belong to tenant and user
@@ -96,7 +96,7 @@ class MessageFileParser:
         # return all file objs
         return new_files
 
-    def transform_message_files(self, files: List[MessageFile], app_model_config: Optional[AppModelConfig]) -> List[FileObj]:
+    def transform_message_files(self, files: list[MessageFile], app_model_config: Optional[AppModelConfig]) -> list[FileObj]:
         """
         transform message files
 
@@ -110,8 +110,8 @@ class MessageFileParser:
         # return all file objs
         return [file_obj for file_objs in type_file_objs.values() for file_obj in file_objs]
 
-    def _to_file_objs(self, files: List[Union[Dict, MessageFile]],
-                      file_upload_config: dict) -> Dict[FileType, List[FileObj]]:
+    def _to_file_objs(self, files: list[Union[dict, MessageFile]],
+                      file_upload_config: dict) -> dict[FileType, list[FileObj]]:
         """
         transform files to file objs
 
@@ -119,7 +119,7 @@ class MessageFileParser:
         :param file_upload_config:
         :return:
         """
-        type_file_objs: Dict[FileType, List[FileObj]] = {
+        type_file_objs: dict[FileType, list[FileObj]] = {
             # Currently only support image
             FileType.IMAGE: []
         }
@@ -129,6 +129,10 @@ class MessageFileParser:
 
         # group by file type and convert file args or message files to FileObj
         for file in files:
+            if isinstance(file, MessageFile):
+                if file.belongs_to == FileBelongsTo.ASSISTANT.value:
+                    continue
+
             file_obj = self._to_file_obj(file, file_upload_config)
             if file_obj.type not in type_file_objs:
                 continue

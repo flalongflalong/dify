@@ -5,11 +5,11 @@ from flask import request
 from flask_restful import Resource, reqparse
 from werkzeug.exceptions import NotFound, Unauthorized
 
+from constants.languages import supported_language
 from controllers.console import api
 from controllers.console.wraps import only_edition_cloud
 from extensions.ext_database import db
-from libs.helper import supported_language
-from models.model import RecommendedApp, App, InstalledApp
+from models.model import App, InstalledApp, RecommendedApp
 
 
 def admin_required(view):

@@ -1,12 +1,14 @@
-# -*- coding:utf-8 -*-
 import uuid
-from controllers.web import api
-from flask_restful import Resource
+
 from flask import request
-from werkzeug.exceptions import Unauthorized, NotFound
-from models.model import Site, EndUser, App
+from flask_restful import Resource
+from werkzeug.exceptions import NotFound, Unauthorized
+
+from controllers.web import api
 from extensions.ext_database import db
 from libs.passport import PassportService
+from models.model import App, EndUser, Site
+
 
 class PassportResource(Resource):
     """Base resource for passport."""

@@ -3,7 +3,7 @@ import pickle
 from json import JSONDecodeError
 
 from sqlalchemy import func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from extensions.ext_database import db
 from models.account import Account
@@ -18,7 +18,7 @@ class Dataset(db.Model):
         db.Index('retrieval_model_idx', "retrieval_model", postgresql_using='gin')
     )
 
-    INDEXING_TECHNIQUE_LIST = ['high_quality', 'economy']
+    INDEXING_TECHNIQUE_LIST = ['high_quality', 'economy', None]
 
     id = db.Column(UUID, server_default=db.text('uuid_generate_v4()'))
     tenant_id = db.Column(UUID, nullable=False)
@@ -95,6 +95,14 @@ class Dataset(db.Model):
             .filter(Document.dataset_id == self.id).scalar()
 
     @property
+    def doc_form(self):
+        document = db.session.query(Document).filter(
+            Document.dataset_id == self.id).first()
+        if document:
+            return document.doc_form
+        return None
+
+    @property
     def retrieval_model_dict(self):
         default_retrieval_model = {
             'search_method': 'semantic_search',
@@ -135,7 +143,8 @@ class DatasetProcessRule(db.Model):
         ],
         'segmentation': {
             'delimiter': '\n',
-            'max_tokens': 1000
+            'max_tokens': 500,
+            'chunk_overlap': 50
         }
     }
 

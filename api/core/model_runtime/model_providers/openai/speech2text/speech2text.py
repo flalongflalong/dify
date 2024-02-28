@@ -1,4 +1,4 @@
-from typing import Optional, IO
+from typing import IO, Optional
 
 from openai import OpenAI
 

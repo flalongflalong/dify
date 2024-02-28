@@ -99,7 +99,7 @@ class ModelProviderApi(Resource):
     @login_required
     @account_initialization_required
     def post(self, provider: str):
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         parser = reqparse.RequestParser()
@@ -123,7 +123,7 @@ class ModelProviderApi(Resource):
     @login_required
     @account_initialization_required
     def delete(self, provider: str):
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         model_provider_service = ModelProviderService()
@@ -160,7 +160,7 @@ class PreferredProviderTypeUpdateApi(Resource):
     @login_required
     @account_initialization_required
     def post(self, provider: str):
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         tenant_id = current_user.current_tenant_id
@@ -187,10 +187,11 @@ class ModelProviderPaymentCheckoutUrlApi(Resource):
     def get(self, provider: str):
         if provider != 'anthropic':
             raise ValueError(f'provider name {provider} is invalid')
-
+        BillingService.is_tenant_owner_or_admin(current_user)
         data = BillingService.get_model_provider_payment_link(provider_name=provider,
                                                               tenant_id=current_user.current_tenant_id,
-                                                              account_id=current_user.id)
+                                                              account_id=current_user.id,
+                                                              prefilled_email=current_user.email)
         return data
 
 

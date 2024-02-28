@@ -1,7 +1,7 @@
 import logging
 import mimetypes
 import os
-from typing import Optional, cast, Tuple
+from typing import Optional, cast
 
 import requests
 from flask import current_app
@@ -12,9 +12,17 @@ from core.model_runtime.model_providers import model_provider_factory
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.provider_manager import ProviderManager
 from models.provider import ProviderType
-from services.entities.model_provider_entities import ProviderResponse, CustomConfigurationResponse, \
-    SystemConfigurationResponse, CustomConfigurationStatus, ProviderWithModelsResponse, ModelResponse, \
-    DefaultModelResponse, ModelWithProviderEntityResponse, SimpleProviderEntityResponse
+from services.entities.model_provider_entities import (
+    CustomConfigurationResponse,
+    CustomConfigurationStatus,
+    DefaultModelResponse,
+    ModelResponse,
+    ModelWithProviderEntityResponse,
+    ProviderResponse,
+    ProviderWithModelsResponse,
+    SimpleProviderEntityResponse,
+    SystemConfigurationResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +418,7 @@ class ModelProviderService:
             model=model
         )
 
-    def get_model_provider_icon(self, provider: str, icon_type: str, lang: str) -> Tuple[Optional[bytes], Optional[str]]:
+    def get_model_provider_icon(self, provider: str, icon_type: str, lang: str) -> tuple[Optional[bytes], Optional[str]]:
         """
         get model provider icon.
 

@@ -1,9 +1,11 @@
-import app
 import datetime
 import time
+
 import click
 from flask import current_app
 from werkzeug.exceptions import NotFound
+
+import app
 from extensions.ext_database import db
 from models.dataset import Embedding
 

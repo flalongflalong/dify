@@ -12,6 +12,9 @@ import { upload } from '@/service/base'
 import { fetchFileUploadConfig } from '@/service/common'
 import { fetchSupportFileTypes } from '@/service/datasets'
 import I18n from '@/context/i18n'
+import { LanguagesSupported } from '@/i18n/language'
+
+const FILES_NUMBER_LIMIT = 20
 
 type IFileUploaderProps = {
   fileList: FileItem[]
@@ -70,8 +73,10 @@ const FileUploader = ({
 
       return item
     })
+    res = res.map(item => item.toLowerCase())
+    res = res.filter((item, index, self) => self.indexOf(item) === index)
 
-    return res.map(item => item.toUpperCase()).join(locale === 'en' ? ', ' : '、 ')
+    return res.map(item => item.toUpperCase()).join(locale !== LanguagesSupported[1] ? ', ' : '、 ')
   })()
   const ACCEPTS = supportTypes.map((ext: string) => `.${ext}`)
   const fileUploadConfig = useMemo(() => fileUploadConfigResponse ?? {
@@ -172,6 +177,11 @@ const FileUploader = ({
     if (!files.length)
       return false
 
+    if (files.length + fileList.length > FILES_NUMBER_LIMIT) {
+      notify({ type: 'error', message: t('datasetCreation.stepOne.uploader.validation.filesNumber', { filesNumber: FILES_NUMBER_LIMIT }) })
+      return false
+    }
+
     const preparedFiles = files.map((file, index) => ({
       fileID: `file${index}-${Date.now()}`,
       file,
@@ -181,7 +191,7 @@ const FileUploader = ({
     prepareFileList(newFiles)
     fileListRef.current = newFiles
     uploadMultipleFiles(preparedFiles)
-  }, [prepareFileList, uploadMultipleFiles])
+  }, [prepareFileList, uploadMultipleFiles, notify, t, fileList])
 
   const handleDragEnter = (e: DragEvent) => {
     e.preventDefault()

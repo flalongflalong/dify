@@ -22,6 +22,7 @@ export type IResultProps = {
   isInstalledApp: boolean
   installedAppInfo?: InstalledApp
   isError: boolean
+  isShowTextToSpeech: boolean
   promptConfig: PromptConfig | null
   moreLikeThisEnabled: boolean
   inputs: Record<string, any>
@@ -45,6 +46,7 @@ const Result: FC<IResultProps> = ({
   isInstalledApp,
   installedAppInfo,
   isError,
+  isShowTextToSpeech,
   promptConfig,
   moreLikeThisEnabled,
   inputs,
@@ -94,8 +96,13 @@ const Result: FC<IResultProps> = ({
       return true
 
     const prompt_variables = promptConfig?.prompt_variables
-    if (!prompt_variables || prompt_variables?.length === 0)
+    if (!prompt_variables || prompt_variables?.length === 0) {
+      if (completionFiles.find(item => item.transfer_method === TransferMethod.local_file && !item.upload_file_id)) {
+        notify({ type: 'info', message: t('appDebug.errorMessage.waitForImgUpload') })
+        return false
+      }
       return true
+    }
 
     let hasEmptyInput = ''
     const requiredVars = prompt_variables?.filter(({ key, name, required }) => {
@@ -230,6 +237,7 @@ const Result: FC<IResultProps> = ({
       isLoading={isCallBatchAPI ? (!completionRes && isResponsing) : false}
       taskId={isCallBatchAPI ? ((taskId as number) < 10 ? `0${taskId}` : `${taskId}`) : undefined}
       controlClearMoreLikeThis={controlClearMoreLikeThis}
+      isShowTextToSpeech={isShowTextToSpeech}
     />
   )
 

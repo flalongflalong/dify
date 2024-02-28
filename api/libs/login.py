@@ -1,10 +1,7 @@
 import os
 from functools import wraps
 
-from flask import current_app
-from flask import g
-from flask import has_request_context
-from flask import request, session
+from flask import current_app, g, has_request_context, request
 from flask_login import user_logged_in
 from flask_login.config import EXEMPT_METHODS
 from werkzeug.exceptions import Unauthorized

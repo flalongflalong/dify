@@ -2,14 +2,13 @@
 
 import { createContext, useContext } from 'use-context-selector'
 import useSWR from 'swr'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   fetchModelList,
   fetchModelProviders,
   fetchSupportRetrievalMethods,
 } from '@/service/common'
 import {
-  ModelFeatureEnum,
   ModelStatusEnum,
   ModelTypeEnum,
 } from '@/app/components/header/account-setting/model-provider-page/declarations'
@@ -23,7 +22,6 @@ import { defaultPlan } from '@/app/components/billing/config'
 const ProviderContext = createContext<{
   modelProviders: ModelProvider[]
   textGenerationModelList: Model[]
-  agentThoughtModelList: Model[]
   supportRetrievalMethods: RETRIEVE_METHOD[]
   hasSettedApiKey: boolean
   plan: {
@@ -33,32 +31,33 @@ const ProviderContext = createContext<{
   }
   isFetchedPlan: boolean
   enableBilling: boolean
+  onPlanInfoChanged: () => void
   enableReplaceWebAppLogo: boolean
 }>({
-  modelProviders: [],
-  textGenerationModelList: [],
-  agentThoughtModelList: [],
-  supportRetrievalMethods: [],
-  hasSettedApiKey: true,
-  plan: {
-    type: Plan.sandbox,
-    usage: {
-      vectorSpace: 32,
-      buildApps: 12,
-      teamMembers: 1,
-      annotatedResponse: 1,
-    },
-    total: {
-      vectorSpace: 200,
-      buildApps: 50,
-      teamMembers: 1,
-      annotatedResponse: 10,
-    },
-  },
-  isFetchedPlan: false,
-  enableBilling: false,
-  enableReplaceWebAppLogo: false,
-})
+      modelProviders: [],
+      textGenerationModelList: [],
+      supportRetrievalMethods: [],
+      hasSettedApiKey: true,
+      plan: {
+        type: Plan.sandbox,
+        usage: {
+          vectorSpace: 32,
+          buildApps: 12,
+          teamMembers: 1,
+          annotatedResponse: 1,
+        },
+        total: {
+          vectorSpace: 200,
+          buildApps: 50,
+          teamMembers: 1,
+          annotatedResponse: 10,
+        },
+      },
+      isFetchedPlan: false,
+      enableBilling: false,
+      onPlanInfoChanged: () => { },
+      enableReplaceWebAppLogo: false,
+    })
 
 export const useProviderContext = () => useContext(ProviderContext)
 
@@ -73,60 +72,35 @@ export const ProviderContextProvider = ({
   const { data: textGenerationModelList } = useSWR(`${fetchModelListUrlPrefix}${ModelTypeEnum.textGeneration}`, fetchModelList)
   const { data: supportRetrievalMethods } = useSWR('/datasets/retrieval-setting', fetchSupportRetrievalMethods)
 
-  const agentThoughtModelList = useMemo(() => {
-    const result: Model[] = []
-    if (textGenerationModelList?.data) {
-      textGenerationModelList?.data.forEach((item) => {
-        const agentThoughtModels = item.models.filter(model => model.features?.includes(ModelFeatureEnum.agentThought))
-
-        if (agentThoughtModels.length) {
-          result.push({
-            ...item,
-            models: agentThoughtModels,
-          })
-        }
-      })
-
-      return result
-    }
-
-    return []
-  }, [textGenerationModelList])
-
   const [plan, setPlan] = useState(defaultPlan)
   const [isFetchedPlan, setIsFetchedPlan] = useState(false)
   const [enableBilling, setEnableBilling] = useState(true)
   const [enableReplaceWebAppLogo, setEnableReplaceWebAppLogo] = useState(false)
+
+  const fetchPlan = async () => {
+    const data = await fetchCurrentPlanInfo()
+    const enabled = data.billing.enabled
+    setEnableBilling(enabled)
+    setEnableReplaceWebAppLogo(data.can_replace_logo)
+    if (enabled) {
+      setPlan(parseCurrentPlan(data))
+      setIsFetchedPlan(true)
+    }
+  }
   useEffect(() => {
-    (async () => {
-      const data = await fetchCurrentPlanInfo()
-      const enabled = data.billing.enabled
-      setEnableBilling(enabled)
-      setEnableReplaceWebAppLogo(data.can_replace_logo)
-      if (enabled) {
-        setPlan(parseCurrentPlan(data))
-        // setPlan(parseCurrentPlan({
-        //   ...data,
-        //   annotation_quota_limit: {
-        //     ...data.annotation_quota_limit,
-        //     limit: 10,
-        //   },
-        // }))
-        setIsFetchedPlan(true)
-      }
-    })()
+    fetchPlan()
   }, [])
 
   return (
     <ProviderContext.Provider value={{
       modelProviders: providersData?.data || [],
       textGenerationModelList: textGenerationModelList?.data || [],
-      agentThoughtModelList,
       hasSettedApiKey: !!textGenerationModelList?.data.some(model => model.status === ModelStatusEnum.active),
       supportRetrievalMethods: supportRetrievalMethods?.retrieval_method || [],
       plan,
       isFetchedPlan,
       enableBilling,
+      onPlanInfoChanged: fetchPlan,
       enableReplaceWebAppLogo,
     }}>
       {children}

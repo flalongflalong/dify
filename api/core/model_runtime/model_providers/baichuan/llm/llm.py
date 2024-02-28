@@ -1,19 +1,40 @@
-from typing import Generator, List, Optional, Union, cast
-from core.model_runtime.entities.llm_entities import LLMResult, LLMUsage, LLMResultChunk, LLMResultChunkDelta
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, AssistantPromptMessage, UserPromptMessage, SystemPromptMessage
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
-from core.model_runtime.errors.invoke import InvokeConnectionError, InvokeServerUnavailableError, InvokeRateLimitError, \
-    InvokeAuthorizationError, InvokeBadRequestError, InvokeError
+from collections.abc import Generator
+from typing import cast
+
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    SystemPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.errors.invoke import (
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
-from core.model_runtime.model_providers.baichuan.llm.baichuan_turbo_errors import \
-    InsufficientAccountBalance, InvalidAPIKeyError, InternalServerError, RateLimitReachedError, InvalidAuthenticationError, BadRequestError
-from core.model_runtime.model_providers.baichuan.llm.baichuan_turbo import BaichuanModel, BaichuanMessage
+from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.model_runtime.model_providers.baichuan.llm.baichuan_tokenizer import BaichuanTokenizer
+from core.model_runtime.model_providers.baichuan.llm.baichuan_turbo import BaichuanMessage, BaichuanModel
+from core.model_runtime.model_providers.baichuan.llm.baichuan_turbo_errors import (
+    BadRequestError,
+    InsufficientAccountBalance,
+    InternalServerError,
+    InvalidAPIKeyError,
+    InvalidAuthenticationError,
+    RateLimitReachedError,
+)
+
 
 class BaichuanLarguageModel(LargeLanguageModel):
     def _invoke(self, model: str, credentials: dict, 
                 prompt_messages: list[PromptMessage], model_parameters: dict, 
-                tools: list[PromptMessageTool] | None = None, stop: List[str] | None = None, 
+                tools: list[PromptMessageTool] | None = None, stop: list[str] | None = None, 
                 stream: bool = True, user: str | None = None) \
             -> LLMResult | Generator:
         return self._generate(model=model, credentials=credentials, prompt_messages=prompt_messages,
@@ -23,7 +44,7 @@ class BaichuanLarguageModel(LargeLanguageModel):
                        tools: list[PromptMessageTool] | None = None) -> int:
         return self._num_tokens_from_messages(prompt_messages)
 
-    def _num_tokens_from_messages(self, messages: List[PromptMessage],) -> int:
+    def _num_tokens_from_messages(self, messages: list[PromptMessage],) -> int:
         """Calculate num tokens for baichuan model"""
         def tokens(text: str):
             return BaichuanTokenizer._get_num_tokens(text)
@@ -79,16 +100,18 @@ class BaichuanLarguageModel(LargeLanguageModel):
         try:
             instance.generate(model=model, stream=False, messages=[
                 BaichuanMessage(content='ping', role='user')
-            ], parameters={}, timeout=10)
-        except InvalidAPIKeyError as e:
+            ], parameters={
+                'max_tokens': 1,
+            }, timeout=60)
+        except Exception as e:
             raise CredentialsValidateFailedError(f"Invalid API key: {e}")
 
     def _generate(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                  model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                 stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                 stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
             -> LLMResult | Generator:
         if tools is not None and len(tools) > 0:
-            raise InvokeBadRequestError(f"Baichuan model doesn't support tools")
+            raise InvokeBadRequestError("Baichuan model doesn't support tools")
         
         instance = BaichuanModel(
             api_key=credentials['api_key'],

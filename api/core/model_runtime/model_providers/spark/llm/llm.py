@@ -1,12 +1,23 @@
 import threading
-from typing import Optional, Generator, Union, List
+from collections.abc import Generator
+from typing import Optional, Union
 
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, UserPromptMessage, AssistantPromptMessage, \
-    SystemPromptMessage
-from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, \
-    LLMResultChunkDelta
-from core.model_runtime.errors.invoke import InvokeConnectionError, InvokeServerUnavailableError, InvokeRateLimitError, \
-    InvokeAuthorizationError, InvokeBadRequestError, InvokeError
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    SystemPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.errors.invoke import (
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 
@@ -17,7 +28,7 @@ class SparkLargeLanguageModel(LargeLanguageModel):
 
     def _invoke(self, model: str, credentials: dict,
                 prompt_messages: list[PromptMessage], model_parameters: dict,
-                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                 stream: bool = True, user: Optional[str] = None) \
             -> Union[LLMResult, Generator]:
         """
@@ -76,7 +87,7 @@ class SparkLargeLanguageModel(LargeLanguageModel):
 
     def _generate(self, model: str, credentials: dict,
                   prompt_messages: list[PromptMessage], model_parameters: dict,
-                  stop: Optional[List[str]] = None, stream: bool = True,
+                  stop: Optional[list[str]] = None, stream: bool = True,
                   user: Optional[str] = None) -> Union[LLMResult, Generator]:
         """
         Invoke large language model
@@ -234,7 +245,7 @@ class SparkLargeLanguageModel(LargeLanguageModel):
 
         return message_text
     
-    def _convert_messages_to_prompt(self, messages: List[PromptMessage]) -> str:
+    def _convert_messages_to_prompt(self, messages: list[PromptMessage]) -> str:
         """
         Format a list of messages into a full prompt for the Anthropic model
 

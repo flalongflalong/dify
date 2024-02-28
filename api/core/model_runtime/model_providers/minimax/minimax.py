@@ -1,7 +1,8 @@
-from core.model_runtime.model_providers.__base.model_provider import ModelProvider
+import logging
+
 from core.model_runtime.entities.model_entities import ModelType
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
-import logging
+from core.model_runtime.model_providers.__base.model_provider import ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -26,4 +27,4 @@ class MinimaxProvider(ModelProvider):
             raise ex
         except Exception as ex:
             logger.exception(f'{self.get_provider_schema().provider} credentials validate failed')
-            raise ex
+            raise CredentialsValidateFailedError(f'{ex}')

@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.model_entities import ModelType, ProviderModel, AIModelEntity
+from core.model_runtime.entities.model_entities import AIModelEntity, ModelType, ProviderModel
 
 
 class ConfigurateMethod(Enum):

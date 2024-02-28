@@ -10,6 +10,7 @@
 - `text_embedding` 文本 Embedding 模型
 - `rerank` Rerank 模型
 - `speech2text` 语音转文字
+- `tts` 文字转语音
 - `moderation` 审查
 
 依旧以 `Anthropic` 为例，`Anthropic` 仅支持 LLM，因此在 `model_providers.anthropic` 创建一个 `llm` 为名称的 `module`。
@@ -76,7 +77,7 @@ pricing:  # 价格信息
   ```python
   def _invoke(self, model: str, credentials: dict,
               prompt_messages: list[PromptMessage], model_parameters: dict,
-              tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+              tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
               stream: bool = True, user: Optional[str] = None) \
           -> Union[LLMResult, Generator]:
       """

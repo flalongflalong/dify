@@ -8,12 +8,12 @@ import Link from 'next/link'
 import { useContext } from 'use-context-selector'
 import Toast from '../components/base/toast'
 import style from './page.module.css'
-// import Tooltip from '@/app/components/base/tooltip/index'
 import { IS_CE_EDITION, apiPrefix } from '@/config'
 import Button from '@/app/components/base/button'
 import { login, oauth } from '@/service/common'
 import I18n from '@/context/i18n'
-
+import { LanguagesSupported } from '@/i18n/language'
+import { getPurifyHref } from '@/utils'
 const validEmailReg = /^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$/
 
 type IState = {
@@ -149,7 +149,7 @@ const NormalForm = () => {
           {!IS_CE_EDITION && (
             <div className="flex flex-col gap-3 mt-6">
               <div className='w-full'>
-                <a href={`${apiPrefix}/oauth/login/github`}>
+                <a href={getPurifyHref(`${apiPrefix}/oauth/login/github`)}>
                   <Button
                     type='default'
                     disabled={isLoading}
@@ -168,7 +168,7 @@ const NormalForm = () => {
                 </a>
               </div>
               <div className='w-full'>
-                <a href={`${apiPrefix}/oauth/login/google`}>
+                <a href={getPurifyHref(`${apiPrefix}/oauth/login/google`)}>
                   <Button
                     type='default'
                     disabled={isLoading}
@@ -281,14 +281,14 @@ const NormalForm = () => {
             &nbsp;
             <Link
               className='text-primary-600'
-              target={'_blank'}
-              href={locale === 'en' ? 'https://docs.dify.ai/user-agreement/terms-of-service' : 'https://docs.dify.ai/v/zh-hans/user-agreement/terms-of-service'}
+              target='_blank' rel='noopener noreferrer'
+              href={locale !== LanguagesSupported[1] ? 'https://docs.dify.ai/user-agreement/terms-of-service' : 'https://docs.dify.ai/v/zh-hans/user-agreement/terms-of-service'}
             >{t('login.tos')}</Link>
             &nbsp;&&nbsp;
             <Link
               className='text-primary-600'
-              target={'_blank'}
-              href={locale === 'en' ? 'https://docs.dify.ai/user-agreement/privacy-policy' : 'https://docs.dify.ai/v/zh-hans/user-agreement/privacy-policy'}
+              target='_blank' rel='noopener noreferrer'
+              href={locale !== LanguagesSupported[1] ? 'https://docs.dify.ai/user-agreement/privacy-policy' : 'https://docs.dify.ai/v/zh-hans/user-agreement/privacy-policy'}
             >{t('login.pp')}</Link>
           </div>
 

@@ -1,8 +1,6 @@
-# -*- coding:utf-8 -*-
 import os
 
 import dotenv
-
 
 dotenv.load_dotenv()
 
@@ -23,7 +21,6 @@ DEFAULTS = {
     'CONSOLE_API_URL': 'https://cloud.dify.ai',
     'SERVICE_API_URL': 'https://api.dify.ai',
     'APP_WEB_URL': 'https://udify.app',
-    'APP_API_URL': 'https://udify.app',
     'FILES_URL': '',
     'STORAGE_TYPE': 'local',
     'STORAGE_LOCAL_PATH': 'storage',
@@ -40,12 +37,14 @@ DEFAULTS = {
     'CELERY_BACKEND': 'database',
     'LOG_LEVEL': 'INFO',
     'HOSTED_OPENAI_QUOTA_LIMIT': 200,
-    'HOSTED_OPENAI_ENABLED': 'False',
+    'HOSTED_OPENAI_TRIAL_ENABLED': 'False',
+    'HOSTED_OPENAI_TRIAL_MODELS': 'gpt-3.5-turbo,gpt-3.5-turbo-1106,gpt-3.5-turbo-instruct,gpt-3.5-turbo-16k,gpt-3.5-turbo-16k-0613,gpt-3.5-turbo-0613,gpt-3.5-turbo-0125,text-davinci-003',
     'HOSTED_OPENAI_PAID_ENABLED': 'False',
+    'HOSTED_OPENAI_PAID_MODELS': 'gpt-4,gpt-4-turbo-preview,gpt-4-1106-preview,gpt-4-0125-preview,gpt-3.5-turbo,gpt-3.5-turbo-16k,gpt-3.5-turbo-16k-0613,gpt-3.5-turbo-1106,gpt-3.5-turbo-0613,gpt-3.5-turbo-0125,gpt-3.5-turbo-instruct,text-davinci-003',
     'HOSTED_AZURE_OPENAI_ENABLED': 'False',
     'HOSTED_AZURE_OPENAI_QUOTA_LIMIT': 200,
     'HOSTED_ANTHROPIC_QUOTA_LIMIT': 600000,
-    'HOSTED_ANTHROPIC_ENABLED': 'False',
+    'HOSTED_ANTHROPIC_TRIAL_ENABLED': 'False',
     'HOSTED_ANTHROPIC_PAID_ENABLED': 'False',
     'HOSTED_MODERATION_ENABLED': 'False',
     'HOSTED_MODERATION_PROVIDERS': '',
@@ -59,6 +58,8 @@ DEFAULTS = {
     'BILLING_ENABLED': 'False',
     'CAN_REPLACE_LOGO': 'False',
     'ETL_TYPE': 'dify',
+    'KEYWORD_STORE': 'jieba',
+    'BATCH_UPLOAD_LIMIT': 20
 }
 
 
@@ -67,7 +68,8 @@ def get_env(key):
 
 
 def get_bool_env(key):
-    return get_env(key).lower() == 'true'
+    value = get_env(key)
+    return value.lower() == 'true' if value is not None else False
 
 
 def get_cors_allow_origins(env, default):
@@ -88,7 +90,7 @@ class Config:
         # ------------------------
         # General Configurations.
         # ------------------------
-        self.CURRENT_VERSION = "0.4.4"
+        self.CURRENT_VERSION = "0.5.6"
         self.COMMIT_SHA = get_env('COMMIT_SHA')
         self.EDITION = "SELF_HOSTED"
         self.DEPLOY_ENV = get_env('DEPLOY_ENV')
@@ -97,34 +99,24 @@ class Config:
 
         # The backend URL prefix of the console API.
         # used to concatenate the login authorization callback or notion integration callback.
-        self.CONSOLE_API_URL = get_env('CONSOLE_URL') if get_env('CONSOLE_URL') else get_env('CONSOLE_API_URL')
+        self.CONSOLE_API_URL = get_env('CONSOLE_API_URL')
 
         # The front-end URL prefix of the console web.
         # used to concatenate some front-end addresses and for CORS configuration use.
-        self.CONSOLE_WEB_URL = get_env('CONSOLE_URL') if get_env('CONSOLE_URL') else get_env('CONSOLE_WEB_URL')
-
-        # WebApp API backend Url prefix.
-        # used to declare the back-end URL for the front-end API.
-        self.APP_API_URL = get_env('APP_URL') if get_env('APP_URL') else get_env('APP_API_URL')
+        self.CONSOLE_WEB_URL = get_env('CONSOLE_WEB_URL')
 
         # WebApp Url prefix.
         # used to display WebAPP API Base Url to the front-end.
-        self.APP_WEB_URL = get_env('APP_URL') if get_env('APP_URL') else get_env('APP_WEB_URL')
+        self.APP_WEB_URL = get_env('APP_WEB_URL')
 
         # Service API Url prefix.
         # used to display Service API Base Url to the front-end.
-        self.SERVICE_API_URL = get_env('API_URL') if get_env('API_URL') else get_env('SERVICE_API_URL')
+        self.SERVICE_API_URL = get_env('SERVICE_API_URL')
 
         # File preview or download Url prefix.
         # used to display File preview or download Url to the front-end or as Multi-model inputs;
         # Url is signed and has expiration time.
         self.FILES_URL = get_env('FILES_URL') if get_env('FILES_URL') else self.CONSOLE_API_URL
-
-        # Fallback Url prefix.
-        # Will be deprecated in the future.
-        self.CONSOLE_URL = get_env('CONSOLE_URL')
-        self.API_URL = get_env('API_URL')
-        self.APP_URL = get_env('APP_URL')
 
         # Your App secret key will be used for securely signing the session cookie
         # Make sure you are changing this key for your deployment with a strong key.
@@ -194,7 +186,7 @@ class Config:
         # Currently, only support: qdrant, milvus, zilliz, weaviate
         # ------------------------
         self.VECTOR_STORE = get_env('VECTOR_STORE')
-
+        self.KEYWORD_STORE = get_env('KEYWORD_STORE')
         # qdrant settings
         self.QDRANT_URL = get_env('QDRANT_URL')
         self.QDRANT_API_KEY = get_env('QDRANT_API_KEY')
@@ -219,6 +211,13 @@ class Config:
         self.MAIL_TYPE = get_env('MAIL_TYPE')
         self.MAIL_DEFAULT_SEND_FROM = get_env('MAIL_DEFAULT_SEND_FROM')
         self.RESEND_API_KEY = get_env('RESEND_API_KEY')
+        self.RESEND_API_URL = get_env('RESEND_API_URL')
+        # SMTP settings
+        self.SMTP_SERVER = get_env('SMTP_SERVER')
+        self.SMTP_PORT = get_env('SMTP_PORT')
+        self.SMTP_USERNAME = get_env('SMTP_USERNAME')
+        self.SMTP_PASSWORD = get_env('SMTP_PASSWORD')
+        self.SMTP_USE_TLS = get_bool_env('SMTP_USE_TLS')
         
         # ------------------------
         # Workpace Configurations.
@@ -260,23 +259,29 @@ class Config:
         # ------------------------
         # Platform Configurations.
         # ------------------------
-        self.HOSTED_OPENAI_ENABLED = get_bool_env('HOSTED_OPENAI_ENABLED')
         self.HOSTED_OPENAI_API_KEY = get_env('HOSTED_OPENAI_API_KEY')
         self.HOSTED_OPENAI_API_BASE = get_env('HOSTED_OPENAI_API_BASE')
         self.HOSTED_OPENAI_API_ORGANIZATION = get_env('HOSTED_OPENAI_API_ORGANIZATION')
+        self.HOSTED_OPENAI_TRIAL_ENABLED = get_bool_env('HOSTED_OPENAI_TRIAL_ENABLED')
+        self.HOSTED_OPENAI_TRIAL_MODELS = get_env('HOSTED_OPENAI_TRIAL_MODELS')
         self.HOSTED_OPENAI_QUOTA_LIMIT = int(get_env('HOSTED_OPENAI_QUOTA_LIMIT'))
         self.HOSTED_OPENAI_PAID_ENABLED = get_bool_env('HOSTED_OPENAI_PAID_ENABLED')
+        self.HOSTED_OPENAI_PAID_MODELS = get_env('HOSTED_OPENAI_PAID_MODELS')
 
         self.HOSTED_AZURE_OPENAI_ENABLED = get_bool_env('HOSTED_AZURE_OPENAI_ENABLED')
         self.HOSTED_AZURE_OPENAI_API_KEY = get_env('HOSTED_AZURE_OPENAI_API_KEY')
         self.HOSTED_AZURE_OPENAI_API_BASE = get_env('HOSTED_AZURE_OPENAI_API_BASE')
         self.HOSTED_AZURE_OPENAI_QUOTA_LIMIT = int(get_env('HOSTED_AZURE_OPENAI_QUOTA_LIMIT'))
 
-        self.HOSTED_ANTHROPIC_ENABLED = get_bool_env('HOSTED_ANTHROPIC_ENABLED')
         self.HOSTED_ANTHROPIC_API_BASE = get_env('HOSTED_ANTHROPIC_API_BASE')
         self.HOSTED_ANTHROPIC_API_KEY = get_env('HOSTED_ANTHROPIC_API_KEY')
+        self.HOSTED_ANTHROPIC_TRIAL_ENABLED = get_bool_env('HOSTED_ANTHROPIC_TRIAL_ENABLED')
         self.HOSTED_ANTHROPIC_QUOTA_LIMIT = int(get_env('HOSTED_ANTHROPIC_QUOTA_LIMIT'))
         self.HOSTED_ANTHROPIC_PAID_ENABLED = get_bool_env('HOSTED_ANTHROPIC_PAID_ENABLED')
+
+        self.HOSTED_MINIMAX_ENABLED = get_bool_env('HOSTED_MINIMAX_ENABLED')
+        self.HOSTED_SPARK_ENABLED = get_bool_env('HOSTED_SPARK_ENABLED')
+        self.HOSTED_ZHIPUAI_ENABLED = get_bool_env('HOSTED_ZHIPUAI_ENABLED')
 
         self.HOSTED_MODERATION_ENABLED = get_bool_env('HOSTED_MODERATION_ENABLED')
         self.HOSTED_MODERATION_PROVIDERS = get_env('HOSTED_MODERATION_PROVIDERS')
@@ -285,6 +290,8 @@ class Config:
         self.UNSTRUCTURED_API_URL = get_env('UNSTRUCTURED_API_URL')
         self.BILLING_ENABLED = get_bool_env('BILLING_ENABLED')
         self.CAN_REPLACE_LOGO = get_bool_env('CAN_REPLACE_LOGO')
+
+        self.BATCH_UPLOAD_LIMIT = get_env('BATCH_UPLOAD_LIMIT')
 
 
 class CloudEditionConfig(Config):

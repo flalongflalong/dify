@@ -6,6 +6,7 @@ from controllers.console.wraps import account_initialization_required
 from libs.login import login_required
 from services.advanced_prompt_template_service import AdvancedPromptTemplateService
 
+
 class AdvancedPromptTemplateList(Resource):
     
     @setup_required

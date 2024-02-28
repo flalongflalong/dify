@@ -1,12 +1,14 @@
 export type FormValue = Record<string, any>
 
 export type TypeWithI18N<T = string> = {
-  'en_US': T
-  'zh_Hans': T
+  'en-US': T
+  'zh-Hans': T
+  [key: string]: T
 }
 
 export enum FormTypeEnum {
   textInput = 'text-input',
+  textNumber = 'number-input',
   secretInput = 'secret-input',
   select = 'select',
   radio = 'radio',
@@ -24,6 +26,7 @@ export enum ModelTypeEnum {
   rerank = 'rerank',
   speech2text = 'speech2text',
   moderation = 'moderation',
+  tts = 'tts',
 }
 
 export const MODEL_TYPE_TEXT = {
@@ -32,6 +35,7 @@ export const MODEL_TYPE_TEXT = {
   [ModelTypeEnum.rerank]: 'Rerank',
   [ModelTypeEnum.speech2text]: 'Speech2text',
   [ModelTypeEnum.moderation]: 'Moderation',
+  [ModelTypeEnum.tts]: 'TTS',
 }
 
 export enum ConfigurateMethodEnum {
@@ -63,16 +67,16 @@ export enum ModelStatusEnum {
 
 export const MODEL_STATUS_TEXT: { [k: string]: TypeWithI18N } = {
   'no-configure': {
-    en_US: 'No Configure',
-    zh_Hans: '未配置凭据',
+    'en-US': 'No Configure',
+    'zh-Hans': '未配置凭据',
   },
   'quota-exceeded': {
-    en_US: 'Quota Exceeded',
-    zh_Hans: '额度不足',
+    'en-US': 'Quota Exceeded',
+    'zh-Hans': '额度不足',
   },
   'no-permission': {
-    en_US: 'No Permission',
-    zh_Hans: '无使用权限',
+    'en-US': 'No Permission',
+    'zh-Hans': '无使用权限',
   },
 }
 
@@ -92,10 +96,13 @@ export type CredentialFormSchemaBase = {
   type: FormTypeEnum
   required: boolean
   default?: string
+  tooltip?: TypeWithI18N
   show_on: FormShowOnObject[]
+  url?: string
 }
 
 export type CredentialFormSchemaTextInput = CredentialFormSchemaBase & { max_length?: number; placeholder?: TypeWithI18N }
+export type CredentialFormSchemaNumberInput = CredentialFormSchemaBase & { min?: number; max?: number; placeholder?: TypeWithI18N }
 export type CredentialFormSchemaSelect = CredentialFormSchemaBase & { options: FormOption[]; placeholder?: TypeWithI18N }
 export type CredentialFormSchemaRadio = CredentialFormSchemaBase & { options: FormOption[] }
 export type CredentialFormSchemaSecretInput = CredentialFormSchemaBase & { placeholder?: TypeWithI18N }
@@ -126,6 +133,7 @@ export enum CurrentSystemQuotaTypeEnum {
 export enum QuotaUnitEnum {
   times = 'times',
   tokens = 'tokens',
+  credits = 'credits',
 }
 
 export type QuotaConfiguration = {

@@ -16,7 +16,7 @@ class ModelType(Enum):
     RERANK = "rerank"
     SPEECH2TEXT = "speech2text"
     MODERATION = "moderation"
-    # TTS = "tts"
+    TTS = "tts"
     # TEXT2IMG = "text2img"
 
     @classmethod
@@ -32,8 +32,10 @@ class ModelType(Enum):
             return cls.TEXT_EMBEDDING
         elif origin_model_type == 'reranking' or origin_model_type == cls.RERANK.value:
             return cls.RERANK
-        elif origin_model_type == cls.SPEECH2TEXT.value:
+        elif origin_model_type == 'speech2text' or origin_model_type == cls.SPEECH2TEXT.value:
             return cls.SPEECH2TEXT
+        elif origin_model_type == 'tts' or origin_model_type == cls.TTS.value:
+            return cls.TTS
         elif origin_model_type == cls.MODERATION.value:
             return cls.MODERATION
         else:
@@ -53,6 +55,8 @@ class ModelType(Enum):
             return 'reranking'
         elif self == self.SPEECH2TEXT:
             return 'speech2text'
+        elif self == self.TTS:
+            return 'tts'
         elif self == self.MODERATION:
             return 'moderation'
         else:
@@ -75,6 +79,7 @@ class ModelFeature(Enum):
     MULTI_TOOL_CALL = "multi-tool-call"
     AGENT_THOUGHT = "agent-thought"
     VISION = "vision"
+    STREAM_TOOL_CALL = "stream-tool-call"
 
 
 class DefaultParameterName(Enum):
@@ -86,6 +91,7 @@ class DefaultParameterName(Enum):
     PRESENCE_PENALTY = "presence_penalty"
     FREQUENCY_PENALTY = "frequency_penalty"
     MAX_TOKENS = "max_tokens"
+    RESPONSE_FORMAT = "response_format"
 
     @classmethod
     def value_of(cls, value: Any) -> 'DefaultParameterName':
@@ -121,6 +127,11 @@ class ModelPropertyKey(Enum):
     FILE_UPLOAD_LIMIT = "file_upload_limit"
     SUPPORTED_FILE_EXTENSIONS = "supported_file_extensions"
     MAX_CHARACTERS_PER_CHUNK = "max_characters_per_chunk"
+    DEFAULT_VOICE = "default_voice"
+    VOICES = "voices"
+    WORD_LIMIT = "word_limit"
+    AUDOI_TYPE = "audio_type"
+    MAX_WORKERS = "max_workers"
 
 
 class ProviderModel(BaseModel):
@@ -150,8 +161,8 @@ class ParameterRule(BaseModel):
     help: Optional[I18nObject] = None
     required: bool = False
     default: Optional[Any] = None
-    min: Optional[float | int] = None
-    max: Optional[float | int] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
     precision: Optional[int] = None
     options: list[str] = []
 

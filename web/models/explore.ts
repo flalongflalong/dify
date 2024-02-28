@@ -6,6 +6,7 @@ export type AppBasicInfo = {
   mode: AppMode
   icon: string
   icon_background: string
+  is_agent: boolean
 }
 
 export type AppCategory = 'Writing' | 'Translate' | 'HR' | 'Programming' | 'Assistant'
@@ -15,13 +16,14 @@ export type App = {
   app_id: string
   description: string
   copyright: string
-  privacy_policy: string
+  privacy_policy: string | null
   category: AppCategory
   position: number
   is_listed: boolean
   install_count: number
   installed: boolean
   editable: boolean
+  is_agent: boolean
 }
 
 export type InstalledApp = {

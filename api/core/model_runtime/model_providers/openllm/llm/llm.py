@@ -1,21 +1,46 @@
-from typing import Generator, List, Optional, Union
-from core.model_runtime.model_providers.openllm.llm.openllm_generate_errors import BadRequestError, InvalidAPIKeyError, \
-    InternalServerError, RateLimitReachedError, InvalidAuthenticationError, InsufficientAccountBalanceError
-from core.model_runtime.model_providers.openllm.llm.openllm_generate import OpenLLMGenerate, OpenLLMGenerateMessage
+from collections.abc import Generator
 
-from core.model_runtime.entities.llm_entities import LLMResult, LLMUsage, LLMResultChunk, LLMResultChunkDelta, LLMMode
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, AssistantPromptMessage, UserPromptMessage, SystemPromptMessage
-from core.model_runtime.entities.model_entities import AIModelEntity, ParameterRule, ParameterType, FetchFrom, ModelType, ModelPropertyKey
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
-from core.model_runtime.errors.invoke import InvokeConnectionError, InvokeServerUnavailableError, InvokeRateLimitError, \
-    InvokeAuthorizationError, InvokeBadRequestError, InvokeError
+from core.model_runtime.entities.llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    UserPromptMessage,
+)
+from core.model_runtime.entities.model_entities import (
+    AIModelEntity,
+    FetchFrom,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+)
+from core.model_runtime.errors.invoke import (
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
+from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
+from core.model_runtime.model_providers.openllm.llm.openllm_generate import OpenLLMGenerate, OpenLLMGenerateMessage
+from core.model_runtime.model_providers.openllm.llm.openllm_generate_errors import (
+    BadRequestError,
+    InsufficientAccountBalanceError,
+    InternalServerError,
+    InvalidAPIKeyError,
+    InvalidAuthenticationError,
+    RateLimitReachedError,
+)
+
 
 class OpenLLMLargeLanguageModel(LargeLanguageModel):
     def _invoke(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                 model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
         -> LLMResult | Generator:
         return self._generate(model, credentials, prompt_messages, model_parameters, tools, stop, stream, user)
 
@@ -52,7 +77,7 @@ class OpenLLMLargeLanguageModel(LargeLanguageModel):
                        tools: list[PromptMessageTool] | None = None) -> int:
         return self._num_tokens_from_messages(prompt_messages, tools)
 
-    def _num_tokens_from_messages(self, messages: List[PromptMessage], tools: list[PromptMessageTool]) -> int:
+    def _num_tokens_from_messages(self, messages: list[PromptMessage], tools: list[PromptMessageTool]) -> int:
         """
             Calculate num tokens for OpenLLM model
             it's a generate model, so we just join them by spe
@@ -62,7 +87,7 @@ class OpenLLMLargeLanguageModel(LargeLanguageModel):
 
     def _generate(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                 model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
         -> LLMResult | Generator:
         client = OpenLLMGenerate()
         response = client.generate(

@@ -1,14 +1,22 @@
+import type { Viewport } from 'next'
 import I18nServer from './components/i18n-server'
 import BrowerInitor from './components/browser-initor'
 import SentryInitor from './components/sentry-initor'
+import Topbar from './components/base/topbar'
 import { getLocaleOnServer } from '@/i18n/server'
-
 import './styles/globals.css'
 import './styles/markdown.scss'
 
 export const metadata = {
   title: 'Dify',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
+  userScalable: false,
 }
 
 const LocaleLayout = ({
@@ -35,6 +43,7 @@ const LocaleLayout = ({
         data-public-maintenance-notice={process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE}
         data-public-site-about={process.env.NEXT_PUBLIC_SITE_ABOUT}
       >
+        <Topbar/>
         <BrowerInitor>
           <SentryInitor>
             {/* @ts-expect-error Async Server Component */}

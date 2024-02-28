@@ -1,11 +1,11 @@
 import json
 import logging
 import sys
-from typing import Optional, List
+from typing import Optional
 
 from core.model_runtime.callbacks.base_callback import Callback
-from core.model_runtime.entities.llm_entities import LLMResultChunk, LLMResult
-from core.model_runtime.entities.message_entities import PromptMessageTool, PromptMessage
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk
+from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool
 from core.model_runtime.model_providers.__base.ai_model import AIModel
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class LoggingCallback(Callback):
     def on_before_invoke(self, llm_instance: AIModel, model: str, credentials: dict,
                          prompt_messages: list[PromptMessage], model_parameters: dict,
-                         tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                         tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                          stream: bool = True, user: Optional[str] = None) -> None:
         """
         Before invoke callback
@@ -30,7 +30,7 @@ class LoggingCallback(Callback):
         """
         self.print_text("\n[on_llm_before_invoke]\n", color='blue')
         self.print_text(f"Model: {model}\n", color='blue')
-        self.print_text(f"Parameters:\n", color='blue')
+        self.print_text("Parameters:\n", color='blue')
         for key, value in model_parameters.items():
             self.print_text(f"\t{key}: {value}\n", color='blue')
 
@@ -38,7 +38,7 @@ class LoggingCallback(Callback):
             self.print_text(f"\tstop: {stop}\n", color='blue')
 
         if tools:
-            self.print_text(f"\tTools:\n", color='blue')
+            self.print_text("\tTools:\n", color='blue')
             for tool in tools:
                 self.print_text(f"\t\t{tool.name}\n", color='blue')
 
@@ -47,7 +47,7 @@ class LoggingCallback(Callback):
         if user:
             self.print_text(f"User: {user}\n", color='blue')
 
-        self.print_text(f"Prompt messages:\n", color='blue')
+        self.print_text("Prompt messages:\n", color='blue')
         for prompt_message in prompt_messages:
             if prompt_message.name:
                 self.print_text(f"\tname: {prompt_message.name}\n", color='blue')
@@ -60,7 +60,7 @@ class LoggingCallback(Callback):
 
     def on_new_chunk(self, llm_instance: AIModel, chunk: LLMResultChunk, model: str, credentials: dict,
                      prompt_messages: list[PromptMessage], model_parameters: dict,
-                     tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                     tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                      stream: bool = True, user: Optional[str] = None):
         """
         On new chunk callback
@@ -81,7 +81,7 @@ class LoggingCallback(Callback):
 
     def on_after_invoke(self, llm_instance: AIModel, result: LLMResult, model: str, credentials: dict,
                         prompt_messages: list[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                         stream: bool = True, user: Optional[str] = None) -> None:
         """
         After invoke callback
@@ -101,7 +101,7 @@ class LoggingCallback(Callback):
         self.print_text(f"Content: {result.message.content}\n", color='yellow')
 
         if result.message.tool_calls:
-            self.print_text(f"Tool calls:\n", color='yellow')
+            self.print_text("Tool calls:\n", color='yellow')
             for tool_call in result.message.tool_calls:
                 self.print_text(f"\t{tool_call.id}\n", color='yellow')
                 self.print_text(f"\t{tool_call.function.name}\n", color='yellow')
@@ -113,7 +113,7 @@ class LoggingCallback(Callback):
 
     def on_invoke_error(self, llm_instance: AIModel, ex: Exception, model: str, credentials: dict,
                         prompt_messages: list[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                         stream: bool = True, user: Optional[str] = None) -> None:
         """
         Invoke error callback

@@ -4,7 +4,9 @@ import time
 import click
 from celery import shared_task
 from flask import current_app, render_template
+
 from extensions.ext_mail import mail
+
 
 @shared_task(queue='mail')
 def send_invite_member_mail_task(language: str, to: str, token: str, inviter_name: str, workspace_name: str):
@@ -25,9 +27,10 @@ def send_invite_member_mail_task(language: str, to: str, token: str, inviter_nam
                              fg='green'))
     start_at = time.perf_counter()
 
+    # TODO send invite member mail using different languages
     try:
         url = f'{current_app.config.get("CONSOLE_WEB_URL")}/activate?token={token}'
-        if language == 'zh-CN':
+        if language == 'zh-Hans':
             html_content = render_template('invite_member_mail_template_zh-CN.html',
                                            to=to,
                                            inviter_name=inviter_name,

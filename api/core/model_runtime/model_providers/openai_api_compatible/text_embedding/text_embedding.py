@@ -1,16 +1,22 @@
+import json
 import time
 from decimal import Decimal
 from typing import Optional
 from urllib.parse import urljoin
-import requests
-import json
 
 import numpy as np
+import requests
 
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.model_entities import PriceType, ModelPropertyKey, ModelType, AIModelEntity, FetchFrom, \
-    PriceConfig
-from core.model_runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingUsage
+from core.model_runtime.entities.model_entities import (
+    AIModelEntity,
+    FetchFrom,
+    ModelPropertyKey,
+    ModelType,
+    PriceConfig,
+    PriceType,
+)
+from core.model_runtime.entities.text_embedding_entities import EmbeddingUsage, TextEmbeddingResult
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.text_embedding_model import TextEmbeddingModel
 from core.model_runtime.model_providers.openai_api_compatible._common import _CommonOAI_API_Compat
@@ -173,11 +179,11 @@ class OAICompatEmbeddingModel(_CommonOAI_API_Compat, TextEmbeddingModel):
             try:
                 json_result = response.json()
             except json.JSONDecodeError as e:
-                raise CredentialsValidateFailedError(f'Credentials validation failed: JSON decode error')
+                raise CredentialsValidateFailedError('Credentials validation failed: JSON decode error')
 
             if 'model' not in json_result:
                 raise CredentialsValidateFailedError(
-                    f'Credentials validation failed: invalid response')
+                    'Credentials validation failed: invalid response')
         except CredentialsValidateFailedError:
             raise
         except Exception as ex:

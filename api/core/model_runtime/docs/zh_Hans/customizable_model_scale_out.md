@@ -23,6 +23,7 @@
 - `text_embedding` 文本 Embedding 模型
 - `rerank` Rerank 模型
 - `speech2text` 语音转文字
+- `tts` 文字转语音
 - `moderation` 审查
 
 `Xinference`支持`LLM`和`Text Embedding`和Rerank，那么我们开始编写`xinference.yaml`。
@@ -30,7 +31,7 @@
 ```yaml
 provider: xinference #确定供应商标识
 label: # 供应商展示名称，可设置 en_US 英文、zh_Hans 中文两种语言，zh_Hans 不设置将默认使用 en_US。
-  en_US: Xorbots Inference
+  en_US: Xorbits Inference
 icon_small: # 小图标，可以参考其他供应商的图标，存储在对应供应商实现目录下的 _assets 目录，中英文策略同 label
   en_US: icon_s_en.svg
 icon_large: # 大图标
@@ -126,7 +127,7 @@ provider_credential_schema:
   ```python
   def _invoke(self, model: str, credentials: dict,
               prompt_messages: list[PromptMessage], model_parameters: dict,
-              tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+              tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
               stream: bool = True, user: Optional[str] = None) \
           -> Union[LLMResult, Generator]:
       """
@@ -260,7 +261,7 @@ provider_credential_schema:
             fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
             model_type=model_type,
             model_properties={ 
-                'mode':  ModelType.LLM,
+                ModelPropertyKey.MODE:  ModelType.LLM,
             },
             parameter_rules=rules
         )

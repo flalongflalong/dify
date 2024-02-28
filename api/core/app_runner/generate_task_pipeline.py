@@ -1,25 +1,45 @@
 import json
 import logging
 import time
-from typing import Union, Generator, cast, Optional
+from collections.abc import Generator
+from typing import Optional, Union, cast
 
 from pydantic import BaseModel
 
-from core.app_runner.moderation_handler import OutputModerationHandler, ModerationRule
-from core.entities.application_entities import ApplicationGenerateEntity
+from core.app_runner.moderation_handler import ModerationRule, OutputModerationHandler
 from core.application_queue_manager import ApplicationQueueManager, PublishFrom
-from core.entities.queue_entities import QueueErrorEvent, QueueStopEvent, QueueMessageEndEvent, \
-    QueueRetrieverResourcesEvent, QueueAgentThoughtEvent, QueuePingEvent, QueueMessageEvent, QueueMessageReplaceEvent, \
-    AnnotationReplyEvent
-from core.model_runtime.entities.llm_entities import LLMResult, LLMUsage, LLMResultChunk, LLMResultChunkDelta
-from core.model_runtime.entities.message_entities import AssistantPromptMessage, PromptMessageRole, \
-    TextPromptMessageContent, PromptMessageContentType, ImagePromptMessageContent, PromptMessage
-from core.model_runtime.errors.invoke import InvokeError, InvokeAuthorizationError
+from core.entities.application_entities import ApplicationGenerateEntity, InvokeFrom
+from core.entities.queue_entities import (
+    AnnotationReplyEvent,
+    QueueAgentMessageEvent,
+    QueueAgentThoughtEvent,
+    QueueErrorEvent,
+    QueueMessageEndEvent,
+    QueueMessageEvent,
+    QueueMessageFileEvent,
+    QueueMessageReplaceEvent,
+    QueuePingEvent,
+    QueueRetrieverResourcesEvent,
+    QueueStopEvent,
+)
+from core.errors.error import ModelCurrentlyNotSupportError, ProviderTokenNotInitError, QuotaExceededError
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta, LLMUsage
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    ImagePromptMessageContent,
+    PromptMessage,
+    PromptMessageContentType,
+    PromptMessageRole,
+    TextPromptMessageContent,
+)
+from core.model_runtime.errors.invoke import InvokeAuthorizationError, InvokeError
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
+from core.model_runtime.utils.encoders import jsonable_encoder
 from core.prompt.prompt_template import PromptTemplateParser
+from core.tools.tool_file_manager import ToolFileManager
 from events.message_event import message_was_created
 from extensions.ext_database import db
-from models.model import Message, Conversation, MessageAgentThought
+from models.model import Conversation, Message, MessageAgentThought, MessageFile
 from services.annotation_service import AppAnnotationService
 
 logger = logging.getLogger(__name__)
@@ -99,7 +119,7 @@ class GenerateTaskPipeline:
                     }
 
                     self._task_state.llm_result.message.content = annotation.content
-            elif isinstance(event, (QueueStopEvent, QueueMessageEndEvent)):
+            elif isinstance(event, QueueStopEvent | QueueMessageEndEvent):
                 if isinstance(event, QueueMessageEndEvent):
                     self._task_state.llm_result = event.llm_result
                 else:
@@ -135,6 +155,8 @@ class GenerateTaskPipeline:
                         completion_tokens
                     )
 
+                self._task_state.metadata['usage'] = jsonable_encoder(self._task_state.llm_result.usage)
+
                 # response moderation
                 if self._output_moderation_handler:
                     self._output_moderation_handler.stop_thread()
@@ -145,12 +167,13 @@ class GenerateTaskPipeline:
                     )
 
                 # Save message
-                self._save_message(event.llm_result)
+                self._save_message(self._task_state.llm_result)
 
                 response = {
                     'event': 'message',
                     'task_id': self._application_generate_entity.task_id,
                     'id': self._message.id,
+                    'message_id': self._message.id,
                     'mode': self._conversation.mode,
                     'answer': event.llm_result.message.content,
                     'metadata': {},
@@ -161,7 +184,7 @@ class GenerateTaskPipeline:
                     response['conversation_id'] = self._conversation.id
 
                 if self._task_state.metadata:
-                    response['metadata'] = self._task_state.metadata
+                    response['metadata'] = self._get_response_metadata()
 
                 return response
             else:
@@ -176,8 +199,10 @@ class GenerateTaskPipeline:
             event = message.event
 
             if isinstance(event, QueueErrorEvent):
-                raise self._handle_error(event)
-            elif isinstance(event, (QueueStopEvent, QueueMessageEndEvent)):
+                data = self._error_to_stream_response_data(self._handle_error(event))
+                yield self._yield_response(data)
+                break
+            elif isinstance(event, QueueStopEvent | QueueMessageEndEvent):
                 if isinstance(event, QueueMessageEndEvent):
                     self._task_state.llm_result = event.llm_result
                 else:
@@ -212,6 +237,8 @@ class GenerateTaskPipeline:
                         prompt_tokens,
                         completion_tokens
                     )
+
+                self._task_state.metadata['usage'] = jsonable_encoder(self._task_state.llm_result.usage)
 
                 # response moderation
                 if self._output_moderation_handler:
@@ -244,13 +271,14 @@ class GenerateTaskPipeline:
                     'event': 'message_end',
                     'task_id': self._application_generate_entity.task_id,
                     'id': self._message.id,
+                    'message_id': self._message.id,
                 }
 
                 if self._conversation.mode == 'chat':
                     response['conversation_id'] = self._conversation.id
 
                 if self._task_state.metadata:
-                    response['metadata'] = self._task_state.metadata
+                    response['metadata'] = self._get_response_metadata()
 
                 yield self._yield_response(response)
             elif isinstance(event, QueueRetrieverResourcesEvent):
@@ -269,11 +297,12 @@ class GenerateTaskPipeline:
 
                     self._task_state.llm_result.message.content = annotation.content
             elif isinstance(event, QueueAgentThoughtEvent):
-                agent_thought = (
+                agent_thought: MessageAgentThought = (
                     db.session.query(MessageAgentThought)
                     .filter(MessageAgentThought.id == event.agent_thought_id)
                     .first()
                 )
+                db.session.refresh(agent_thought)
 
                 if agent_thought:
                     response = {
@@ -283,16 +312,49 @@ class GenerateTaskPipeline:
                         'message_id': self._message.id,
                         'position': agent_thought.position,
                         'thought': agent_thought.thought,
+                        'observation': agent_thought.observation,
                         'tool': agent_thought.tool,
+                        'tool_labels': agent_thought.tool_labels,
                         'tool_input': agent_thought.tool_input,
-                        'created_at': int(self._message.created_at.timestamp())
+                        'created_at': int(self._message.created_at.timestamp()),
+                        'message_files': agent_thought.files
                     }
 
                     if self._conversation.mode == 'chat':
                         response['conversation_id'] = self._conversation.id
 
                     yield self._yield_response(response)
-            elif isinstance(event, QueueMessageEvent):
+            elif isinstance(event, QueueMessageFileEvent):
+                message_file: MessageFile = (
+                    db.session.query(MessageFile)
+                    .filter(MessageFile.id == event.message_file_id)
+                    .first()
+                )
+                # get extension
+                if '.' in message_file.url:
+                    extension = f'.{message_file.url.split(".")[-1]}'
+                    if len(extension) > 10:
+                        extension = '.bin'
+                else:
+                    extension = '.bin'
+                # add sign url
+                url = ToolFileManager.sign_file(file_id=message_file.id, extension=extension)
+
+                if message_file:
+                    response = {
+                        'event': 'message_file',
+                        'id': message_file.id,
+                        'type': message_file.type,
+                        'belongs_to': message_file.belongs_to or 'user',
+                        'url': url
+                    }
+
+                    if self._conversation.mode == 'chat':
+                        response['conversation_id'] = self._conversation.id
+
+                    yield self._yield_response(response)
+
+            elif isinstance(event, QueueMessageEvent | QueueAgentMessageEvent):
                 chunk = event.chunk
                 delta_text = chunk.delta.message.content
                 if delta_text is None:
@@ -322,7 +384,7 @@ class GenerateTaskPipeline:
                         self._output_moderation_handler.append_new_token(delta_text)
 
                 self._task_state.llm_result.message.content += delta_text
-                response = self._handle_chunk(delta_text)
+                response = self._handle_chunk(delta_text, agent=isinstance(event, QueueAgentMessageEvent))
                 yield self._yield_response(response)
             elif isinstance(event, QueueMessageReplaceEvent):
                 response = {
@@ -374,14 +436,14 @@ class GenerateTaskPipeline:
             extras=self._application_generate_entity.extras
         )
 
-    def _handle_chunk(self, text: str) -> dict:
+    def _handle_chunk(self, text: str, agent: bool = False) -> dict:
         """
         Handle completed event.
         :param text: text
         :return:
         """
         response = {
-            'event': 'message',
+            'event': 'message' if not agent else 'agent_message',
             'id': self._message.id,
             'task_id': self._application_generate_entity.task_id,
             'message_id': self._message.id,
@@ -409,6 +471,80 @@ class GenerateTaskPipeline:
             return e
         else:
             return Exception(e.description if getattr(e, 'description', None) is not None else str(e))
+
+    def _error_to_stream_response_data(self, e: Exception) -> dict:
+        """
+        Error to stream response.
+        :param e: exception
+        :return:
+        """
+        error_responses = {
+            ValueError: {'code': 'invalid_param', 'status': 400},
+            ProviderTokenNotInitError: {'code': 'provider_not_initialize', 'status': 400},
+            QuotaExceededError: {
+                'code': 'provider_quota_exceeded',
+                'message': "Your quota for Dify Hosted Model Provider has been exhausted. "
+                       "Please go to Settings -> Model Provider to complete your own provider credentials.",
+                'status': 400
+            },
+            ModelCurrentlyNotSupportError: {'code': 'model_currently_not_support', 'status': 400},
+            InvokeError: {'code': 'completion_request_error', 'status': 400}
+        }
+
+        # Determine the response based on the type of exception
+        data = None
+        for k, v in error_responses.items():
+            if isinstance(e, k):
+                data = v
+
+        if data:
+            data.setdefault('message', getattr(e, 'description', str(e)))
+        else:
+            logging.error(e)
+            data = {
+                'code': 'internal_server_error', 
+                'message': 'Internal Server Error, please contact support.',
+                'status': 500
+                }
+
+        return {
+            'event': 'error',
+            'task_id': self._application_generate_entity.task_id,
+            'message_id': self._message.id,
+            **data
+        }
+
+    def _get_response_metadata(self) -> dict:
+        """
+        Get response metadata by invoke from.
+        :return:
+        """
+        metadata = {}
+
+        # show_retrieve_source
+        if 'retriever_resources' in self._task_state.metadata:
+            if self._application_generate_entity.invoke_from in [InvokeFrom.DEBUGGER, InvokeFrom.SERVICE_API]:
+                metadata['retriever_resources'] = self._task_state.metadata['retriever_resources']
+            else:
+                metadata['retriever_resources'] = []
+                for resource in self._task_state.metadata['retriever_resources']:
+                    metadata['retriever_resources'].append({
+                        'segment_id': resource['segment_id'],
+                        'position': resource['position'],
+                        'document_name': resource['document_name'],
+                        'score': resource['score'],
+                        'content': resource['content'],
+                    })
+        # show annotation reply
+        if 'annotation_reply' in self._task_state.metadata:
+            if self._application_generate_entity.invoke_from in [InvokeFrom.DEBUGGER, InvokeFrom.SERVICE_API]:
+                metadata['annotation_reply'] = self._task_state.metadata['annotation_reply']
+
+        # show usage
+        if self._application_generate_entity.invoke_from in [InvokeFrom.DEBUGGER, InvokeFrom.SERVICE_API]:
+            metadata['usage'] = self._task_state.metadata['usage']
+
+        return metadata
 
     def _yield_response(self, response: dict) -> str:
         """
@@ -459,10 +595,33 @@ class GenerateTaskPipeline:
                     "files": files
                 })
         else:
-            prompts.append({
+            prompt_message = prompt_messages[0]
+            text = ''
+            files = []
+            if isinstance(prompt_message.content, list):
+                for content in prompt_message.content:
+                    if content.type == PromptMessageContentType.TEXT:
+                        content = cast(TextPromptMessageContent, content)
+                        text += content.data
+                    else:
+                        content = cast(ImagePromptMessageContent, content)
+                        files.append({
+                            "type": 'image',
+                            "data": content.data[:10] + '...[TRUNCATED]...' + content.data[-10:],
+                            "detail": content.detail.value
+                        })
+            else:
+                text = prompt_message.content
+
+            params = {
                 "role": 'user',
-                "text": prompt_messages[0].content
-            })
+                "text": text,
+            }
+
+            if files:
+                params['files'] = files
+
+            prompts.append(params)
 
         return prompts
 

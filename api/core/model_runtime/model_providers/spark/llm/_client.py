@@ -1,15 +1,13 @@
 import base64
-import datetime
 import hashlib
 import hmac
 import json
 import queue
-from typing import Optional
-from urllib.parse import urlparse
 import ssl
 from datetime import datetime
 from time import mktime
-from urllib.parse import urlencode
+from typing import Optional
+from urllib.parse import urlencode, urlparse
 from wsgiref.handlers import format_date_time
 
 import websocket
@@ -36,6 +34,10 @@ class SparkLLMClient:
             'spark-3': {
                 'version': 'v3.1',
                 'chat_domain': 'generalv3'
+            },
+            'spark-3.5': {
+                'version': 'v3.5',
+                'chat_domain': 'generalv3.5'
             }
         }
 

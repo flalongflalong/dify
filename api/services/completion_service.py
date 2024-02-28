@@ -1,5 +1,6 @@
 import json
-from typing import Generator, Union, Any
+from collections.abc import Generator
+from typing import Any, Union
 
 from sqlalchemy import and_
 
@@ -7,11 +8,11 @@ from core.application_manager import ApplicationManager
 from core.entities.application_entities import InvokeFrom
 from core.file.message_file_parser import MessageFileParser
 from extensions.ext_database import db
-from models.model import Conversation, AppModelConfig, App, Account, EndUser, Message
+from models.model import Account, App, AppModelConfig, Conversation, EndUser, Message
 from services.app_model_config_service import AppModelConfigService
 from services.errors.app import MoreLikeThisDisabledError
 from services.errors.app_model_config import AppModelConfigBrokenError
-from services.errors.conversation import ConversationNotExistsError, ConversationCompletedError
+from services.errors.conversation import ConversationCompletedError, ConversationNotExistsError
 from services.errors.message import MessageNotExistsError
 
 
@@ -28,10 +29,15 @@ class CompletionService:
         auto_generate_name = args['auto_generate_name'] \
             if 'auto_generate_name' in args else True
 
-        if app_model.mode != 'completion' and not query:
-            raise ValueError('query is required')
+        if app_model.mode != 'completion':
+            if not query:
+                raise ValueError('query is required')
 
-        query = query.replace('\x00', '')
+        if query:
+            if not isinstance(query, str):
+                raise ValueError('query must be a string')
+
+            query = query.replace('\x00', '')
 
         conversation_id = args['conversation_id'] if 'conversation_id' in args else None
 
@@ -223,6 +229,8 @@ class CompletionService:
             input_type = list(config.keys())[0]
 
             if variable not in user_inputs or not user_inputs[variable]:
+                if input_type == "external_data_tool":
+                    continue
                 if "required" in input_config and input_config["required"]:
                     raise ValueError(f"{variable} is required in input form")
                 else:
@@ -230,6 +238,10 @@ class CompletionService:
                     continue
 
             value = user_inputs[variable]
+
+            if value:
+                if not isinstance(value, str):
+                    raise ValueError(f"{variable} in input form must be a string")
 
             if input_type == "select":
                 options = input_config["options"] if "options" in input_config else []
@@ -244,4 +256,3 @@ class CompletionService:
             filtered_inputs[variable] = value.replace('\x00', '') if value else None
 
         return filtered_inputs
-

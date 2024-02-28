@@ -1,5 +1,4 @@
-# -*- coding:utf-8 -*-
-from flask_restful import fields, reqparse, marshal_with
+from flask_restful import marshal_with, reqparse
 from flask_restful.inputs import int_range
 from werkzeug.exceptions import NotFound
 
@@ -7,9 +6,9 @@ from controllers.web import api
 from controllers.web.error import NotChatAppError
 from controllers.web.wraps import WebApiResource
 from fields.conversation_fields import conversation_infinite_scroll_pagination_fields, simple_conversation_fields
-from libs.helper import TimestampField, uuid_value
+from libs.helper import uuid_value
 from services.conversation_service import ConversationService
-from services.errors.conversation import LastConversationNotExistsError, ConversationNotExistsError
+from services.errors.conversation import ConversationNotExistsError, LastConversationNotExistsError
 from services.web_conversation_service import WebConversationService
 
 

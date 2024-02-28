@@ -1,25 +1,24 @@
 import os
-import pytest
-
-from typing import Generator
 from time import sleep
+from typing import Generator
 
-from core.model_runtime.entities.message_entities import AssistantPromptMessage, UserPromptMessage, SystemPromptMessage
+import pytest
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import AssistantPromptMessage, SystemPromptMessage, UserPromptMessage
 from core.model_runtime.entities.model_entities import AIModelEntity
-from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunkDelta, \
-    LLMResultChunk
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
-from core.model_runtime.model_providers.wenxin.llm.llm import ErnieBotLarguageModel
+from core.model_runtime.model_providers.wenxin.llm.llm import ErnieBotLargeLanguageModel
+
 
 def test_predefined_models():
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
     model_schemas = model.predefined_models()
     assert len(model_schemas) >= 1
     assert isinstance(model_schemas[0], AIModelEntity)
 
 def test_validate_credentials_for_chat_model():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     with pytest.raises(CredentialsValidateFailedError):
         model.validate_credentials(
@@ -40,7 +39,7 @@ def test_validate_credentials_for_chat_model():
 
 def test_invoke_model_ernie_bot():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot',
@@ -68,7 +67,7 @@ def test_invoke_model_ernie_bot():
 
 def test_invoke_model_ernie_bot_turbo():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot-turbo',
@@ -96,7 +95,7 @@ def test_invoke_model_ernie_bot_turbo():
 
 def test_invoke_model_ernie_8k():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot-8k',
@@ -124,7 +123,7 @@ def test_invoke_model_ernie_8k():
 
 def test_invoke_model_ernie_bot_4():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot-4',
@@ -152,7 +151,7 @@ def test_invoke_model_ernie_bot_4():
 
 def test_invoke_stream_model():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot',
@@ -183,7 +182,7 @@ def test_invoke_stream_model():
 
 def test_invoke_model_with_system():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot',
@@ -213,7 +212,7 @@ def test_invoke_model_with_system():
 
 def test_invoke_with_search():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.invoke(
         model='ernie-bot',
@@ -251,7 +250,7 @@ def test_invoke_with_search():
 
 def test_get_num_tokens():
     sleep(3)
-    model = ErnieBotLarguageModel()
+    model = ErnieBotLargeLanguageModel()
 
     response = model.get_num_tokens(
         model='ernie-bot',

@@ -1,10 +1,11 @@
 from flask_login import current_user
-from flask_restful import reqparse, marshal
+from flask_restful import marshal, reqparse
 from werkzeug.exceptions import NotFound
+
 from controllers.service_api import api
 from controllers.service_api.app.error import ProviderNotInitializeError
 from controllers.service_api.wraps import DatasetApiResource, cloud_edition_billing_resource_check
-from core.errors.error import ProviderTokenNotInitError, LLMBadRequestError
+from core.errors.error import LLMBadRequestError, ProviderTokenNotInitError
 from core.model_manager import ModelManager
 from core.model_runtime.entities.model_entities import ModelType
 from extensions.ext_database import db
@@ -45,8 +46,8 @@ class SegmentApi(DatasetApiResource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
         # validate args
@@ -89,8 +90,8 @@ class SegmentApi(DatasetApiResource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
 
@@ -181,8 +182,8 @@ class DatasetSegmentApi(DatasetApiResource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
             # check segment

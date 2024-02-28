@@ -1,40 +1,81 @@
-from typing import Generator, List, Optional, Union, Iterator, cast
-from openai import OpenAI
-from openai.types.chat import ChatCompletionChunk, ChatCompletion
-from openai.types.completion import Completion
+from collections.abc import Generator, Iterator
+from typing import cast
+
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    ConflictError,
+    InternalServerError,
+    NotFoundError,
+    OpenAI,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
+)
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessageToolCall
+from openai.types.chat.chat_completion_chunk import ChoiceDeltaFunctionCall, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message import FunctionCall
-from openai.types.chat import ChatCompletionChunk, ChatCompletion, ChatCompletionMessageToolCall
-from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall, ChoiceDeltaFunctionCall
-from openai import OpenAI, Stream, \
-    APIConnectionError, APITimeoutError, AuthenticationError, InternalServerError, \
-    RateLimitError, ConflictError, NotFoundError, UnprocessableEntityError, PermissionDeniedError
+from openai.types.completion import Completion
+from xinference_client.client.restful.restful_client import (
+    Client,
+    RESTfulChatglmCppChatModelHandle,
+    RESTfulChatModelHandle,
+    RESTfulGenerateModelHandle,
+)
 
-from xinference_client.client.restful.restful_client import \
-    RESTfulChatModelHandle, RESTfulGenerateModelHandle, RESTfulChatglmCppChatModelHandle, Client
-
-from core.model_runtime.entities.model_entities import AIModelEntity
-
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
-from core.model_runtime.entities.llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, UserPromptMessage, SystemPromptMessage, AssistantPromptMessage
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.model_entities import FetchFrom, ModelType, ParameterRule, ParameterType, ModelPropertyKey
+from core.model_runtime.entities.llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    SystemPromptMessage,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.entities.model_entities import (
+    AIModelEntity,
+    FetchFrom,
+    ModelFeature,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+)
+from core.model_runtime.errors.invoke import (
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
-from core.model_runtime.model_providers.xinference.llm.xinference_helper import XinferenceHelper, XinferenceModelExtraParameter
-from core.model_runtime.errors.invoke import InvokeConnectionError, InvokeServerUnavailableError, InvokeRateLimitError, \
-    InvokeAuthorizationError, InvokeBadRequestError, InvokeError
+from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
+from core.model_runtime.model_providers.xinference.xinference_helper import (
+    XinferenceHelper,
+    XinferenceModelExtraParameter,
+)
 from core.model_runtime.utils import helper
+
 
 class XinferenceAILargeLanguageModel(LargeLanguageModel):
     def _invoke(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                 model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
         -> LLMResult | Generator:
         """
             invoke LLM
 
             see `core.model_runtime.model_providers.__base.large_language_model.LargeLanguageModel._invoke`
         """
+        if 'temperature' in model_parameters:
+            if model_parameters['temperature'] < 0.01:
+                model_parameters['temperature'] = 0.01
+            elif model_parameters['temperature'] > 1.0:
+                model_parameters['temperature'] = 0.99
+
         return self._generate(
             model=model, credentials=credentials, prompt_messages=prompt_messages, model_parameters=model_parameters,
             tools=tools, stop=stop, stream=stream, user=user,
@@ -56,6 +97,9 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
             }
         """
         try:
+            if "/" in credentials['model_uid'] or "?" in credentials['model_uid'] or "#" in credentials['model_uid']:
+                raise CredentialsValidateFailedError("model_uid should not contain /, ?, or #")
+            
             extra_param = XinferenceHelper.get_xinference_extra_parameter(
                 server_url=credentials['server_url'],
                 model_uid=credentials['model_uid']
@@ -66,7 +110,13 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
                 elif 'generate' in extra_param.model_ability:
                     credentials['completion_type'] = 'completion'
                 else:
-                    raise ValueError(f'xinference model ability {extra_param.model_ability} is not supported')
+                    raise ValueError(f'xinference model ability {extra_param.model_ability} is not supported, check if you have the right model type')
+                
+            if extra_param.support_function_call:
+                credentials['support_function_call'] = True
+
+            if extra_param.context_length:
+                credentials['context_length'] = extra_param.context_length
 
         except RuntimeError as e:
             raise CredentialsValidateFailedError(f'Xinference credentials validate failed: {e}')
@@ -85,7 +135,7 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
         """
         return self._num_tokens_from_messages(prompt_messages, tools)
 
-    def _num_tokens_from_messages(self, messages: List[PromptMessage], tools: list[PromptMessageTool], 
+    def _num_tokens_from_messages(self, messages: list[PromptMessage], tools: list[PromptMessageTool], 
                                   is_completion_model: bool = False) -> int:
         def tokens(text: str):
             return self._get_num_tokens_by_gpt2(text)
@@ -222,6 +272,9 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
         elif isinstance(message, SystemPromptMessage):
             message = cast(SystemPromptMessage, message)
             message_dict = {"role": "system", "content": message.content}
+        elif isinstance(message, ToolPromptMessage):
+            message = cast(ToolPromptMessage, message)
+            message_dict = {"tool_call_id": message.tool_call_id, "role": "tool", "content": message.content}
         else:
             raise ValueError(f"Unknown message type {type(message)}")
         
@@ -239,7 +292,7 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
                 label=I18nObject(
                     zh_Hans='温度',
                     en_US='Temperature'
-                )
+                ),
             ),
             ParameterRule(
                 name='top_p',
@@ -284,6 +337,9 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
                 completion_type = LLMMode.COMPLETION.value
             else:
                 raise ValueError(f'xinference model ability {extra_args.model_ability} is not supported')
+            
+        support_function_call = credentials.get('support_function_call', False)
+        context_length = credentials.get('context_length', 2048)
 
         entity = AIModelEntity(
             model=model,
@@ -292,8 +348,12 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
             ),
             fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
             model_type=ModelType.LLM,
+            features=[
+                ModelFeature.TOOL_CALL
+            ] if support_function_call else [],
             model_properties={ 
                 ModelPropertyKey.MODE: completion_type,
+                ModelPropertyKey.CONTEXT_SIZE: context_length
             },
             parameter_rules=rules
         )
@@ -303,7 +363,7 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
     def _generate(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                  model_parameters: dict, extra_model_kwargs: XinferenceModelExtraParameter,
                  tools: list[PromptMessageTool] | None = None, 
-                 stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                 stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
             -> LLMResult | Generator:
         """
             generate text from LLM
@@ -312,6 +372,12 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
             
             extra_model_kwargs can be got by `XinferenceHelper.get_xinference_extra_parameter`
         """
+        if 'server_url' not in credentials:
+            raise CredentialsValidateFailedError('server_url is required in credentials')
+        
+        if credentials['server_url'].endswith('/'):
+            credentials['server_url'] = credentials['server_url'][:-1]
+
         client = OpenAI(
             base_url=f'{credentials["server_url"]}/v1',
             api_key='abc',
@@ -342,7 +408,7 @@ class XinferenceAILargeLanguageModel(LargeLanguageModel):
                 } for tool in tools
             ]
 
-        if isinstance(xinference_model, (RESTfulChatModelHandle, RESTfulChatglmCppChatModelHandle)):
+        if isinstance(xinference_model, RESTfulChatModelHandle | RESTfulChatglmCppChatModelHandle):
             resp = client.chat.completions.create(
                 model=credentials['model_uid'],
                 messages=[self._convert_prompt_message_to_dict(message) for message in prompt_messages], 

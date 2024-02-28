@@ -1,14 +1,27 @@
-from typing import Optional, List, Union, Generator
+from collections.abc import Generator
+from typing import Optional, Union
 
 from replicate import Client as ReplicateClient
 from replicate.exceptions import ReplicateError
 from replicate.prediction import Prediction
 
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.llm_entities import LLMResult, LLMMode, LLMResultChunk, LLMResultChunkDelta
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, AssistantPromptMessage, \
-    PromptMessageRole, UserPromptMessage, SystemPromptMessage
-from core.model_runtime.entities.model_entities import ParameterRule, AIModelEntity, FetchFrom, ModelType, ModelPropertyKey
+from core.model_runtime.entities.llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageRole,
+    PromptMessageTool,
+    SystemPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.entities.model_entities import (
+    AIModelEntity,
+    FetchFrom,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.model_runtime.model_providers.replicate._common import _CommonReplicate
@@ -17,7 +30,7 @@ from core.model_runtime.model_providers.replicate._common import _CommonReplicat
 class ReplicateLargeLanguageModel(_CommonReplicate, LargeLanguageModel):
 
     def _invoke(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], model_parameters: dict,
-                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None, stream: bool = True,
+                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None, stream: bool = True,
                 user: Optional[str] = None) -> Union[LLMResult, Generator]:
 
         version = credentials['model_version']

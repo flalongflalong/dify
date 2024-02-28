@@ -74,8 +74,8 @@ const ApiBasedExtensionModal: FC<ApiBasedExtensionModalProps> = ({
   return (
     <Modal
       isShow
-      onClose={() => {}}
-      wrapperClassName='!z-30'
+      onClose={() => { }}
+      wrapperClassName='!z-[103]'
       className='!p-8 !pb-6 !max-w-none !w-[640px]'
     >
       <div className='mb-2 text-xl font-semibold text-gray-900'>
@@ -101,7 +101,7 @@ const ApiBasedExtensionModal: FC<ApiBasedExtensionModalProps> = ({
           {t('common.apiBasedExtension.modal.apiEndpoint.title')}
           <a
             href={t('common.apiBasedExtension.linkUrl') || '/'}
-            target='_blank'
+            target='_blank' rel='noopener noreferrer'
             className='group flex items-center text-xs text-gray-500 font-normal hover:text-primary-600'
           >
             <BookOpen01 className='mr-1 w-3 h-3 text-gray-500 group-hover:text-primary-600' />

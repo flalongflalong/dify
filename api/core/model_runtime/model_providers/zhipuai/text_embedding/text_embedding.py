@@ -1,14 +1,12 @@
 import time
-from typing import Optional, List, Tuple
-
-from langchain.schema.language_model import _get_token_ids_default_method
+from typing import Optional
 
 from core.model_runtime.entities.model_entities import PriceType
-from core.model_runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingUsage
+from core.model_runtime.entities.text_embedding_entities import EmbeddingUsage, TextEmbeddingResult
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.text_embedding_model import TextEmbeddingModel
-from core.model_runtime.model_providers.zhipuai._client import ZhipuModelAPI
 from core.model_runtime.model_providers.zhipuai._common import _CommonZhipuaiAI
+from core.model_runtime.model_providers.zhipuai.zhipuai_sdk._client import ZhipuAI
 
 
 class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
@@ -29,7 +27,7 @@ class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
         :return: embeddings result
         """
         credentials_kwargs = self._to_credential_kwargs(credentials)
-        client = ZhipuModelAPI(
+        client = ZhipuAI(
             api_key=credentials_kwargs['api_key']
         )
 
@@ -55,7 +53,7 @@ class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
         
         total_num_tokens = 0
         for text in texts:
-            total_num_tokens += len(_get_token_ids_default_method(text))
+            total_num_tokens += self._get_num_tokens_by_gpt2(text)
 
         return total_num_tokens
 
@@ -70,7 +68,7 @@ class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
         try:
             # transform credentials to kwargs for model instance
             credentials_kwargs = self._to_credential_kwargs(credentials)
-            client = ZhipuModelAPI(
+            client = ZhipuAI(
                 api_key=credentials_kwargs['api_key']
             )
 
@@ -83,7 +81,7 @@ class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
         except Exception as ex:
             raise CredentialsValidateFailedError(str(ex))
 
-    def embed_documents(self, model: str, client: ZhipuModelAPI, texts: List[str]) -> Tuple[List[List[float]], int]:
+    def embed_documents(self, model: str, client: ZhipuAI, texts: list[str]) -> tuple[list[list[float]], int]:
         """Call out to ZhipuAI's embedding endpoint.
 
         Args:
@@ -92,19 +90,18 @@ class ZhipuAITextEmbeddingModel(_CommonZhipuaiAI, TextEmbeddingModel):
         Returns:
             List of embeddings, one for each text.
         """
-        
-
         embeddings = []
+        embedding_used_tokens = 0
+
         for text in texts:
-            response = client.invoke(model=model, prompt=text)
-            data = response["data"]
-            embeddings.append(data.get('embedding'))
+            response = client.embeddings.create(model=model, input=text)
+            data = response.data[0]
+            embeddings.append(data.embedding)
+            embedding_used_tokens += response.usage.total_tokens
 
-        embedding_used_tokens = data.get('usage')
-
-        return [list(map(float, e)) for e in embeddings], embedding_used_tokens['total_tokens'] if embedding_used_tokens else 0
+        return [list(map(float, e)) for e in embeddings], embedding_used_tokens
     
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Call out to ZhipuAI's embedding endpoint.
 
         Args:

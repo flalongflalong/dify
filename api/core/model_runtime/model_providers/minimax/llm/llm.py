@@ -1,27 +1,48 @@
-from typing import Generator, List, Optional, Union
-from core.model_runtime.model_providers.minimax.llm.errors import BadRequestError, InvalidAPIKeyError, \
-    InternalServerError, RateLimitReachedError, InvalidAuthenticationError, InsufficientAccountBalanceError
-from core.model_runtime.model_providers.minimax.llm.types import MinimaxMessage
+from collections.abc import Generator
+
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageTool,
+    SystemPromptMessage,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.errors.invoke import (
+    InvokeAuthorizationError,
+    InvokeBadRequestError,
+    InvokeConnectionError,
+    InvokeError,
+    InvokeRateLimitError,
+    InvokeServerUnavailableError,
+)
+from core.model_runtime.errors.validate import CredentialsValidateFailedError
+from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.model_runtime.model_providers.minimax.llm.chat_completion import MinimaxChatCompletion
 from core.model_runtime.model_providers.minimax.llm.chat_completion_pro import MinimaxChatCompletionPro
+from core.model_runtime.model_providers.minimax.llm.errors import (
+    BadRequestError,
+    InsufficientAccountBalanceError,
+    InternalServerError,
+    InvalidAPIKeyError,
+    InvalidAuthenticationError,
+    RateLimitReachedError,
+)
+from core.model_runtime.model_providers.minimax.llm.types import MinimaxMessage
 
-from core.model_runtime.entities.llm_entities import LLMResult, LLMUsage, LLMResultChunk, LLMResultChunkDelta, LLMMode
-from core.model_runtime.entities.message_entities import PromptMessage, PromptMessageTool, AssistantPromptMessage, UserPromptMessage, SystemPromptMessage
-from core.model_runtime.entities.model_entities import AIModelEntity, ParameterRule, ParameterType, FetchFrom, ModelType
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
-from core.model_runtime.errors.invoke import InvokeConnectionError, InvokeServerUnavailableError, InvokeRateLimitError, \
-    InvokeAuthorizationError, InvokeBadRequestError, InvokeError
-from core.model_runtime.errors.validate import CredentialsValidateFailedError
 
 class MinimaxLargeLanguageModel(LargeLanguageModel):
     model_apis = {
+        'abab6-chat': MinimaxChatCompletionPro,
+        'abab5.5s-chat': MinimaxChatCompletionPro,
         'abab5.5-chat': MinimaxChatCompletionPro,
         'abab5-chat': MinimaxChatCompletion
     }
 
     def _invoke(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                 model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
         -> LLMResult | Generator:
         return self._generate(model, credentials, prompt_messages, model_parameters, tools, stop, stream, user)
 
@@ -51,14 +72,14 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
                 stream=False,
                 user=''
             )
-        except InvalidAuthenticationError as e:
+        except (InvalidAuthenticationError, InsufficientAccountBalanceError) as e:
             raise CredentialsValidateFailedError(f"Invalid API key: {e}")
 
     def get_num_tokens(self, model: str, credentials: dict, prompt_messages: list[PromptMessage],
                        tools: list[PromptMessageTool] | None = None) -> int:
         return self._num_tokens_from_messages(prompt_messages, tools)
 
-    def _num_tokens_from_messages(self, messages: List[PromptMessage], tools: list[PromptMessageTool]) -> int:
+    def _num_tokens_from_messages(self, messages: list[PromptMessage], tools: list[PromptMessageTool]) -> int:
         """
             Calculate num tokens for minimax model
 
@@ -73,12 +94,19 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
 
     def _generate(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], 
                 model_parameters: dict, tools: list[PromptMessageTool] | None = None, 
-                stop: List[str] | None = None, stream: bool = True, user: str | None = None) \
+                stop: list[str] | None = None, stream: bool = True, user: str | None = None) \
         -> LLMResult | Generator:
         """
             use MinimaxChatCompletionPro as the type of client, anyway,  MinimaxChatCompletion has the same interface
         """
         client: MinimaxChatCompletionPro = self.model_apis[model]()
+
+        if tools:
+            tools = [{
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters
+            } for tool in tools]
 
         response = client.generate(
             model=model,
@@ -105,7 +133,19 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
         elif isinstance(prompt_message, UserPromptMessage):
             return MinimaxMessage(role=MinimaxMessage.Role.USER.value, content=prompt_message.content)
         elif isinstance(prompt_message, AssistantPromptMessage):
+            if prompt_message.tool_calls:
+                message = MinimaxMessage(
+                    role=MinimaxMessage.Role.ASSISTANT.value,
+                    content=''
+                )
+                message.function_call={
+                    'name': prompt_message.tool_calls[0].function.name,
+                    'arguments': prompt_message.tool_calls[0].function.arguments
+                }
+                return message
             return MinimaxMessage(role=MinimaxMessage.Role.ASSISTANT.value, content=prompt_message.content)
+        elif isinstance(prompt_message, ToolPromptMessage):
+            return MinimaxMessage(role=MinimaxMessage.Role.FUNCTION.value, content=prompt_message.content)
         else:
             raise NotImplementedError(f'Prompt message type {type(prompt_message)} is not supported')
 
@@ -145,6 +185,28 @@ class MinimaxLargeLanguageModel(LargeLanguageModel):
                         ),
                         usage=usage,
                         finish_reason=message.stop_reason if message.stop_reason else None,
+                    ),
+                )
+            elif message.function_call:
+                if 'name' not in message.function_call or 'arguments' not in message.function_call:
+                    continue
+
+                yield LLMResultChunk(
+                    model=model,
+                    prompt_messages=prompt_messages,
+                    delta=LLMResultChunkDelta(
+                        index=0,
+                        message=AssistantPromptMessage(
+                            content='',
+                            tool_calls=[AssistantPromptMessage.ToolCall(
+                                id='',
+                                type='function',
+                                function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                                    name=message.function_call['name'],
+                                    arguments=message.function_call['arguments']
+                                )
+                            )]
+                        ),
                     ),
                 )
             else:

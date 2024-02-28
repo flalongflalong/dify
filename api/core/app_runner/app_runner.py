@@ -1,17 +1,29 @@
 import time
-from typing import cast, Optional, List, Tuple, Generator, Union
+from collections.abc import Generator
+from typing import Optional, Union, cast
 
 from core.application_queue_manager import ApplicationQueueManager, PublishFrom
-from core.entities.application_entities import ModelConfigEntity, PromptTemplateEntity, AppOrchestrationConfigEntity
+from core.entities.application_entities import (
+    ApplicationGenerateEntity,
+    AppOrchestrationConfigEntity,
+    ExternalDataVariableEntity,
+    InvokeFrom,
+    ModelConfigEntity,
+    PromptTemplateEntity,
+)
+from core.features.annotation_reply import AnnotationReplyFeature
+from core.features.external_data_fetch import ExternalDataFetchFeature
+from core.features.hosting_moderation import HostingModerationFeature
+from core.features.moderation import ModerationFeature
 from core.file.file_obj import FileObj
 from core.memory.token_buffer_memory import TokenBufferMemory
 from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta, LLMUsage
-from core.model_runtime.entities.message_entities import PromptMessage, AssistantPromptMessage
+from core.model_runtime.entities.message_entities import AssistantPromptMessage, PromptMessage
 from core.model_runtime.entities.model_entities import ModelPropertyKey
 from core.model_runtime.errors.invoke import InvokeBadRequestError
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.prompt.prompt_transform import PromptTransform
-from models.model import App
+from models.model import App, Message, MessageAnnotation
 
 
 class AppRunner:
@@ -73,7 +85,7 @@ class AppRunner:
         return rest_tokens
 
     def recale_llm_max_tokens(self, model_config: ModelConfigEntity,
-                              prompt_messages: List[PromptMessage]):
+                              prompt_messages: list[PromptMessage]):
         # recalc max_tokens if sum(prompt_token +  max_tokens) over model token limit
         model_type_instance = model_config.provider_model_bundle.model_type_instance
         model_type_instance = cast(LargeLanguageModel, model_type_instance)
@@ -115,7 +127,7 @@ class AppRunner:
                                  query: Optional[str] = None,
                                  context: Optional[str] = None,
                                  memory: Optional[TokenBufferMemory] = None) \
-            -> Tuple[List[PromptMessage], Optional[List[str]]]:
+            -> tuple[list[PromptMessage], Optional[list[str]]]:
         """
         Organize prompt messages
         :param context:
@@ -199,7 +211,8 @@ class AppRunner:
 
     def _handle_invoke_result(self, invoke_result: Union[LLMResult, Generator],
                               queue_manager: ApplicationQueueManager,
-                              stream: bool) -> None:
+                              stream: bool,
+                              agent: bool = False) -> None:
         """
         Handle invoke result
         :param invoke_result: invoke result
@@ -210,16 +223,19 @@ class AppRunner:
         if not stream:
             self._handle_invoke_result_direct(
                 invoke_result=invoke_result,
-                queue_manager=queue_manager
+                queue_manager=queue_manager,
+                agent=agent
             )
         else:
             self._handle_invoke_result_stream(
                 invoke_result=invoke_result,
-                queue_manager=queue_manager
+                queue_manager=queue_manager,
+                agent=agent
             )
 
     def _handle_invoke_result_direct(self, invoke_result: LLMResult,
-                                     queue_manager: ApplicationQueueManager) -> None:
+                                     queue_manager: ApplicationQueueManager,
+                                     agent: bool) -> None:
         """
         Handle invoke result direct
         :param invoke_result: invoke result
@@ -232,7 +248,8 @@ class AppRunner:
         )
 
     def _handle_invoke_result_stream(self, invoke_result: Generator,
-                                     queue_manager: ApplicationQueueManager) -> None:
+                                     queue_manager: ApplicationQueueManager,
+                                     agent: bool) -> None:
         """
         Handle invoke result
         :param invoke_result: invoke result
@@ -244,7 +261,10 @@ class AppRunner:
         text = ''
         usage = None
         for result in invoke_result:
-            queue_manager.publish_chunk_message(result, PublishFrom.APPLICATION_MANAGER)
+            if not agent:
+                queue_manager.publish_chunk_message(result, PublishFrom.APPLICATION_MANAGER)
+            else:
+                queue_manager.publish_agent_chunk_message(result, PublishFrom.APPLICATION_MANAGER)
 
             text += result.delta.message.content
 
@@ -257,6 +277,9 @@ class AppRunner:
             if not usage and result.delta.usage:
                 usage = result.delta.usage
 
+        if not usage:
+            usage = LLMUsage.empty_usage()
+
         llm_result = LLMResult(
             model=model,
             prompt_messages=prompt_messages,
@@ -267,4 +290,102 @@ class AppRunner:
         queue_manager.publish_message_end(
             llm_result=llm_result,
             pub_from=PublishFrom.APPLICATION_MANAGER
+        )
+
+    def moderation_for_inputs(self, app_id: str,
+                              tenant_id: str,
+                              app_orchestration_config_entity: AppOrchestrationConfigEntity,
+                              inputs: dict,
+                              query: str) -> tuple[bool, dict, str]:
+        """
+        Process sensitive_word_avoidance.
+        :param app_id: app id
+        :param tenant_id: tenant id
+        :param app_orchestration_config_entity: app orchestration config entity
+        :param inputs: inputs
+        :param query: query
+        :return:
+        """
+        moderation_feature = ModerationFeature()
+        return moderation_feature.check(
+            app_id=app_id,
+            tenant_id=tenant_id,
+            app_orchestration_config_entity=app_orchestration_config_entity,
+            inputs=inputs,
+            query=query,
+        )
+    
+    def check_hosting_moderation(self, application_generate_entity: ApplicationGenerateEntity,
+                                 queue_manager: ApplicationQueueManager,
+                                 prompt_messages: list[PromptMessage]) -> bool:
+        """
+        Check hosting moderation
+        :param application_generate_entity: application generate entity
+        :param queue_manager: queue manager
+        :param prompt_messages: prompt messages
+        :return:
+        """
+        hosting_moderation_feature = HostingModerationFeature()
+        moderation_result = hosting_moderation_feature.check(
+            application_generate_entity=application_generate_entity,
+            prompt_messages=prompt_messages
+        )
+
+        if moderation_result:
+            self.direct_output(
+                queue_manager=queue_manager,
+                app_orchestration_config=application_generate_entity.app_orchestration_config_entity,
+                prompt_messages=prompt_messages,
+                text="I apologize for any confusion, " \
+                     "but I'm an AI assistant to be helpful, harmless, and honest.",
+                stream=application_generate_entity.stream
+            )
+
+        return moderation_result
+
+    def fill_in_inputs_from_external_data_tools(self, tenant_id: str,
+                                                app_id: str,
+                                                external_data_tools: list[ExternalDataVariableEntity],
+                                                inputs: dict,
+                                                query: str) -> dict:
+        """
+        Fill in variable inputs from external data tools if exists.
+
+        :param tenant_id: workspace id
+        :param app_id: app id
+        :param external_data_tools: external data tools configs
+        :param inputs: the inputs
+        :param query: the query
+        :return: the filled inputs
+        """
+        external_data_fetch_feature = ExternalDataFetchFeature()
+        return external_data_fetch_feature.fetch(
+            tenant_id=tenant_id,
+            app_id=app_id,
+            external_data_tools=external_data_tools,
+            inputs=inputs,
+            query=query
+        )
+    
+    def query_app_annotations_to_reply(self, app_record: App,
+                                       message: Message,
+                                       query: str,
+                                       user_id: str,
+                                       invoke_from: InvokeFrom) -> Optional[MessageAnnotation]:
+        """
+        Query app annotations to reply
+        :param app_record: app record
+        :param message: message
+        :param query: query
+        :param user_id: user id
+        :param invoke_from: invoke from
+        :return:
+        """
+        annotation_reply_feature = AnnotationReplyFeature()
+        return annotation_reply_feature.query(
+            app_record=app_record,
+            message=message,
+            query=query,
+            user_id=user_id,
+            invoke_from=invoke_from
         )

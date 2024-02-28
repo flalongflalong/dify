@@ -27,6 +27,7 @@ import Tooltip from '@/app/components/base/tooltip'
 import Loading from '@/app/components/base/loading'
 import Confirm from '@/app/components/base/confirm'
 import I18n from '@/context/i18n'
+import { LanguagesSupported } from '@/i18n/language'
 import { useAppContext } from '@/context/app-context'
 
 type ISecretKeyModalProps = {
@@ -100,7 +101,7 @@ const SecretKeyModal = ({
   }
 
   const formatDate = (timestamp: string) => {
-    if (locale === 'en')
+    if (locale === LanguagesSupported[0])
       return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format((+timestamp) * 1000)
     else
       return new Intl.DateTimeFormat('fr-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format((+timestamp) * 1000)

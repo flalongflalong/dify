@@ -1,13 +1,14 @@
 import base64
+import copy
 import time
-from typing import Optional, Tuple
+from typing import Optional, Union
 
 import numpy as np
 import tiktoken
 from openai import AzureOpenAI
 
-from core.model_runtime.entities.model_entities import PriceType, AIModelEntity
-from core.model_runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingUsage
+from core.model_runtime.entities.model_entities import AIModelEntity, PriceType
+from core.model_runtime.entities.text_embedding_entities import EmbeddingUsage, TextEmbeddingResult
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.text_embedding_model import TextEmbeddingModel
 from core.model_runtime.model_providers.azure_openai._common import _CommonAzureOpenAI
@@ -76,7 +77,7 @@ class AzureOpenAITextEmbeddingModel(_CommonAzureOpenAI, TextEmbeddingModel):
                 embeddings_batch, embedding_used_tokens = self._embedding_invoke(
                     model=model,
                     client=client,
-                    texts=[""],
+                    texts="",
                     extra_model_kwargs=extra_model_kwargs
                 )
 
@@ -147,8 +148,8 @@ class AzureOpenAITextEmbeddingModel(_CommonAzureOpenAI, TextEmbeddingModel):
         return ai_model_entity.entity
 
     @staticmethod
-    def _embedding_invoke(model: str, client: AzureOpenAI, texts: list[str],
-                          extra_model_kwargs: dict) -> Tuple[list[list[float]], int]:
+    def _embedding_invoke(model: str, client: AzureOpenAI, texts: Union[list[str], str],
+                          extra_model_kwargs: dict) -> tuple[list[list[float]], int]:
         response = client.embeddings.create(
             input=texts,
             model=model,
@@ -187,9 +188,10 @@ class AzureOpenAITextEmbeddingModel(_CommonAzureOpenAI, TextEmbeddingModel):
     def _get_ai_model_entity(base_model_name: str, model: str) -> AzureBaseModel:
         for ai_model_entity in EMBEDDING_BASE_MODELS:
             if ai_model_entity.base_model_name == base_model_name:
-                ai_model_entity.entity.model = model
-                ai_model_entity.entity.label.en_US = model
-                ai_model_entity.entity.label.zh_Hans = model
-                return ai_model_entity
+                ai_model_entity_copy = copy.deepcopy(ai_model_entity)
+                ai_model_entity_copy.entity.model = model
+                ai_model_entity_copy.entity.label.en_US = model
+                ai_model_entity_copy.entity.label.zh_Hans = model
+                return ai_model_entity_copy
 
         return None

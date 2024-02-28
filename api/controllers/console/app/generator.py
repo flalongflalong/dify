@@ -1,16 +1,19 @@
 from flask_login import current_user
-
-from core.model_runtime.errors.invoke import InvokeError
-from libs.login import login_required
 from flask_restful import Resource, reqparse
 
 from controllers.console import api
-from controllers.console.app.error import ProviderNotInitializeError, ProviderQuotaExceededError, \
-    CompletionRequestError, ProviderModelCurrentlyNotSupportError
+from controllers.console.app.error import (
+    CompletionRequestError,
+    ProviderModelCurrentlyNotSupportError,
+    ProviderNotInitializeError,
+    ProviderQuotaExceededError,
+)
 from controllers.console.setup import setup_required
 from controllers.console.wraps import account_initialization_required
+from core.errors.error import ModelCurrentlyNotSupportError, ProviderTokenNotInitError, QuotaExceededError
 from core.generator.llm_generator import LLMGenerator
-from core.errors.error import ProviderTokenNotInitError, QuotaExceededError, ModelCurrentlyNotSupportError
+from core.model_runtime.errors.invoke import InvokeError
+from libs.login import login_required
 
 
 class RuleGenerateApi(Resource):

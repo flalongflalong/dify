@@ -1,27 +1,41 @@
+import json
 import logging
+from collections.abc import Generator
 from decimal import Decimal
+from typing import Optional, Union, cast
 from urllib.parse import urljoin
 
 import requests
-import json
-
-from typing import Optional, Generator, Union, List, cast
 
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.utils import helper
-
-from core.model_runtime.entities.message_entities import ImagePromptMessageContent, PromptMessage, \
-    AssistantPromptMessage, PromptMessageContent, \
-    PromptMessageContentType, PromptMessageFunction, PromptMessageTool, UserPromptMessage, SystemPromptMessage, \
-    ToolPromptMessage
-from core.model_runtime.entities.model_entities import ModelPropertyKey, ModelType, PriceConfig, ParameterRule, \
-    DefaultParameterName, \
-    ParameterType, ModelPropertyKey, FetchFrom, AIModelEntity
 from core.model_runtime.entities.llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (
+    AssistantPromptMessage,
+    ImagePromptMessageContent,
+    PromptMessage,
+    PromptMessageContent,
+    PromptMessageContentType,
+    PromptMessageFunction,
+    PromptMessageTool,
+    SystemPromptMessage,
+    ToolPromptMessage,
+    UserPromptMessage,
+)
+from core.model_runtime.entities.model_entities import (
+    AIModelEntity,
+    DefaultParameterName,
+    FetchFrom,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+    PriceConfig,
+)
 from core.model_runtime.errors.invoke import InvokeError
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.model_runtime.model_providers.openai_api_compatible._common import _CommonOAI_API_Compat
+from core.model_runtime.utils import helper
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +47,7 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
 
     def _invoke(self, model: str, credentials: dict,
                 prompt_messages: list[PromptMessage], model_parameters: dict,
-                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                 stream: bool = True, user: Optional[str] = None) \
             -> Union[LLMResult, Generator]:
         """
@@ -133,16 +147,16 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
             try:
                 json_result = response.json()
             except json.JSONDecodeError as e:
-                raise CredentialsValidateFailedError(f'Credentials validation failed: JSON decode error')
+                raise CredentialsValidateFailedError('Credentials validation failed: JSON decode error')
 
             if (completion_type is LLMMode.CHAT
                     and ('object' not in json_result or json_result['object'] != 'chat.completion')):
                 raise CredentialsValidateFailedError(
-                    f'Credentials validation failed: invalid response object, must be \'chat.completion\'')
+                    'Credentials validation failed: invalid response object, must be \'chat.completion\'')
             elif (completion_type is LLMMode.COMPLETION
                   and ('object' not in json_result or json_result['object'] != 'text_completion')):
                 raise CredentialsValidateFailedError(
-                    f'Credentials validation failed: invalid response object, must be \'text_completion\'')
+                    'Credentials validation failed: invalid response object, must be \'text_completion\'')
         except CredentialsValidateFailedError:
             raise
         except Exception as ex:
@@ -168,7 +182,8 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
                     type=ParameterType.FLOAT,
                     default=float(credentials.get('temperature', 0.7)),
                     min=0,
-                    max=2
+                    max=2,
+                    precision=2
                 ),
                 ParameterRule(
                     name=DefaultParameterName.TOP_P.value,
@@ -176,7 +191,8 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
                     type=ParameterType.FLOAT,
                     default=float(credentials.get('top_p', 1)),
                     min=0,
-                    max=1
+                    max=1,
+                    precision=2
                 ),
                 ParameterRule(
                     name="top_k",
@@ -225,12 +241,12 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
             entity.model_properties[ModelPropertyKey.MODE] = LLMMode.COMPLETION.value
         else:
             raise ValueError(f"Unknown completion type {credentials['completion_type']}")
-    
+
         return entity
 
     # validate_credentials method has been rewritten to use the requests library for compatibility with all providers following OpenAI's API standard.
     def _generate(self, model: str, credentials: dict, prompt_messages: list[PromptMessage], model_parameters: dict,
-                  tools: Optional[list[PromptMessageTool]] = None, stop: Optional[List[str]] = None,
+                  tools: Optional[list[PromptMessageTool]] = None, stop: Optional[list[str]] = None,
                   stream: bool = True, \
                   user: Optional[str] = None) -> Union[LLMResult, Generator]:
         """
@@ -246,7 +262,8 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
         :return: full response or stream response chunk generator result
         """
         headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept-Charset': 'utf-8',
         }
 
         api_key = credentials.get('api_key')
@@ -298,6 +315,9 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
             stream=stream
         )
 
+        if response.encoding is None or response.encoding == 'ISO-8859-1':
+            response.encoding = 'utf-8'
+
         if response.status_code != 200:
             raise InvokeError(f"API request failed with status code {response.status_code}: {response.text}")
 
@@ -340,10 +360,17 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
                 )
             )
 
-        for chunk in response.iter_lines(decode_unicode=True, delimiter='\n\n'):
-            if chunk:
-                decoded_chunk = chunk.strip().lstrip('data: ').lstrip()
+        # delimiter for stream response, need unicode_escape
+        import codecs
+        delimiter = credentials.get("stream_mode_delimiter", "\n\n")
+        delimiter = codecs.decode(delimiter, "unicode_escape")
 
+        for chunk in response.iter_lines(decode_unicode=True, delimiter=delimiter):
+            if chunk:
+                #ignore sse comments
+                if chunk.startswith(':'):
+                    continue                 
+                decoded_chunk = chunk.strip().lstrip('data: ').lstrip()
                 chunk_json = None
                 try:
                     chunk_json = json.loads(decoded_chunk)
@@ -354,16 +381,18 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
                         message=AssistantPromptMessage(content=""),
                         finish_reason="Non-JSON encountered."
                     )
-
+                    break
                 if not chunk_json or len(chunk_json['choices']) == 0:
                     continue
 
                 choice = chunk_json['choices'][0]
+                finish_reason = chunk_json['choices'][0].get('finish_reason')
                 chunk_index += 1
 
                 if 'delta' in choice:
                     delta = choice['delta']
-                    if delta.get('content') is None or delta.get('content') == '':
+                    delta_content = delta.get('content')
+                    if delta_content is None or delta_content == '':
                         continue
 
                     assistant_message_tool_calls = delta.get('tool_calls', None)
@@ -377,30 +406,28 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
 
                     # transform assistant message to prompt message
                     assistant_prompt_message = AssistantPromptMessage(
-                        content=delta.get('content', ''),
+                        content=delta_content,
                         tool_calls=tool_calls if assistant_message_tool_calls else []
                     )
 
-                    full_assistant_content += delta.get('content', '')
+                    full_assistant_content += delta_content
                 elif 'text' in choice:
-                    if choice.get('text') is None or choice.get('text') == '':
+                    choice_text = choice.get('text', '')
+                    if choice_text == '':
                         continue
 
                     # transform assistant message to prompt message
-                    assistant_prompt_message = AssistantPromptMessage(
-                        content=choice.get('text', '')
-                    )
-
-                    full_assistant_content += choice.get('text', '')
+                    assistant_prompt_message = AssistantPromptMessage(content=choice_text)
+                    full_assistant_content += choice_text
                 else:
                     continue
 
                 # check payload indicator for completion
-                if chunk_json['choices'][0].get('finish_reason') is not None:
+                if finish_reason is not None:
                     yield create_final_llm_result_chunk(
                         index=chunk_index,
                         message=assistant_prompt_message,
-                        finish_reason=chunk_json['choices'][0]['finish_reason']
+                        finish_reason=finish_reason
                     )
                 else:
                     yield LLMResultChunk(
@@ -543,7 +570,7 @@ class OAIAPICompatLargeLanguageModel(_CommonOAI_API_Compat, LargeLanguageModel):
 
         return num_tokens
 
-    def _num_tokens_from_messages(self, model: str, messages: List[PromptMessage],
+    def _num_tokens_from_messages(self, model: str, messages: list[PromptMessage],
                                   tools: Optional[list[PromptMessageTool]] = None) -> int:
         """
         Approximate num tokens with GPT2 tokenizer.

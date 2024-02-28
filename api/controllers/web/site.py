@@ -1,8 +1,6 @@
-# -*- coding:utf-8 -*-
-import os
 
-from flask_restful import fields, marshal_with
 from flask import current_app
+from flask_restful import fields, marshal_with
 from werkzeug.exceptions import Forbidden
 
 from controllers.web import api

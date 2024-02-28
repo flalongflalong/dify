@@ -1,10 +1,11 @@
-# -*- coding:utf-8 -*-
 import uuid
 from datetime import datetime
+
+import pandas as pd
 from flask import request
 from flask_login import current_user
-from flask_restful import Resource, reqparse, marshal
-from werkzeug.exceptions import NotFound, Forbidden
+from flask_restful import Resource, marshal, reqparse
+from werkzeug.exceptions import Forbidden, NotFound
 
 import services
 from controllers.console import api
@@ -15,17 +16,15 @@ from controllers.console.wraps import account_initialization_required, cloud_edi
 from core.errors.error import LLMBadRequestError, ProviderTokenNotInitError
 from core.model_manager import ModelManager
 from core.model_runtime.entities.model_entities import ModelType
-from libs.login import login_required
 from extensions.ext_database import db
 from extensions.ext_redis import redis_client
 from fields.segment_fields import segment_fields
+from libs.login import login_required
 from models.dataset import DocumentSegment
-
 from services.dataset_service import DatasetService, DocumentService, SegmentService
-from tasks.enable_segment_to_index_task import enable_segment_to_index_task
-from tasks.disable_segment_from_index_task import disable_segment_from_index_task
 from tasks.batch_create_segment_to_index_task import batch_create_segment_to_index_task
-import pandas as pd
+from tasks.disable_segment_from_index_task import disable_segment_from_index_task
+from tasks.enable_segment_to_index_task import enable_segment_to_index_task
 
 
 class DatasetDocumentSegmentListApi(Resource):
@@ -124,7 +123,7 @@ class DatasetDocumentSegmentApi(Resource):
         # check user's model setting
         DatasetService.check_dataset_model_setting(dataset)
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
 
         try:
@@ -143,8 +142,8 @@ class DatasetDocumentSegmentApi(Resource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
 
@@ -220,7 +219,7 @@ class DatasetDocumentSegmentAddApi(Resource):
         if not document:
             raise NotFound('Document not found.')
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
         # check embedding model setting
         if dataset.indexing_technique == 'high_quality':
@@ -234,8 +233,8 @@ class DatasetDocumentSegmentAddApi(Resource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
         try:
@@ -286,8 +285,8 @@ class DatasetDocumentSegmentUpdateApi(Resource):
                 )
             except LLMBadRequestError:
                 raise ProviderNotInitializeError(
-                    f"No Embedding Model available. Please configure a valid provider "
-                    f"in the Settings -> Model Provider.")
+                    "No Embedding Model available. Please configure a valid provider "
+                    "in the Settings -> Model Provider.")
             except ProviderTokenNotInitError as ex:
                 raise ProviderNotInitializeError(ex.description)
             # check segment
@@ -299,7 +298,7 @@ class DatasetDocumentSegmentUpdateApi(Resource):
         if not segment:
             raise NotFound('Segment not found.')
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
         try:
             DatasetService.check_dataset_permission(dataset, current_user)
@@ -343,7 +342,7 @@ class DatasetDocumentSegmentUpdateApi(Resource):
         if not segment:
             raise NotFound('Segment not found.')
         # The role of the current user in the ta table must be admin or owner
-        if current_user.current_tenant.current_role not in ['admin', 'owner']:
+        if not current_user.is_admin_or_owner:
             raise Forbidden()
         try:
             DatasetService.check_dataset_permission(dataset, current_user)

@@ -4,8 +4,8 @@ from typing import Optional
 from pydantic import BaseModel
 
 from core.model_runtime.entities.common_entities import I18nObject
-from core.model_runtime.entities.model_entities import ProviderModel, ModelType
-from core.model_runtime.entities.provider_entities import SimpleProviderEntity, ProviderEntity
+from core.model_runtime.entities.model_entities import ModelType, ProviderModel
+from core.model_runtime.entities.provider_entities import ProviderEntity
 
 
 class ModelStatus(Enum):

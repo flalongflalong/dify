@@ -2,7 +2,7 @@ version: '3.1'
 services:
   # API service
   api:
-    image: langgenius/dify-api:0.4.4
+    image: langgenius/dify-api:0.5.6
     restart: always
     environment:
       # Startup mode, 'api' starts the API server.
@@ -15,6 +15,9 @@ services:
       # different from api or web app domain.
       # example: http://cloud.dify.ai
       CONSOLE_WEB_URL: ''
+      # Password for admin user initialization.
+      # If left unset, admin user will not be prompted for a password when creating the initial admin account.
+      INIT_PASSWORD: ''
       # The base URL of console application api server, refers to the Console base URL of WEB service if console domain is
       # different from api or web app domain.
       # example: http://cloud.dify.ai
@@ -23,10 +26,6 @@ services:
       # different from console domain.
       # example: http://api.dify.ai
       SERVICE_API_URL: ''
-      # The URL prefix for Web APP api server, refers to the Web App base URL of WEB service if web app domain is different from
-      # console or api domain.
-      # example: http://udify.app
-      APP_API_URL: ''
       # The URL prefix for Web APP frontend, refers to the Web App base URL of WEB service if web app domain is different from
       # console or api domain.
       # example: http://udify.app
@@ -105,12 +104,18 @@ services:
       MILVUS_PASSWORD: Milvus
       # The milvus tls switch.
       MILVUS_SECURE: 'false'
-      # Mail configuration, support: resend
+      # Mail configuration, support: resend, smtp
       MAIL_TYPE: ''
       # default send from email address, if not specified
       MAIL_DEFAULT_SEND_FROM: 'YOUR EMAIL FROM (eg: no-reply <no-reply@dify.ai>)'
+      SMTP_SERVER: ''
+      SMTP_PORT: 587
+      SMTP_USERNAME: ''
+      SMTP_PASSWORD: ''
+      SMTP_USE_TLS: 'true'
       # the api-key for resend (https://resend.com)
       RESEND_API_KEY: ''
+      RESEND_API_URL: https://api.resend.com
       # The DSN for Sentry error reporting. If not set, Sentry error reporting will be disabled.
       SENTRY_DSN: ''
       # The sample rate for Sentry events. Default: `1.0`
@@ -130,7 +135,7 @@ services:
   # worker service
   # The Celery worker for processing the queue.
   worker:
-    image: langgenius/dify-api:0.4.4
+    image: langgenius/dify-api:0.5.6
     restart: always
     environment:
       # Startup mode, 'worker' starts the Celery worker for processing the queue.
@@ -191,6 +196,7 @@ services:
       MAIL_DEFAULT_SEND_FROM: 'YOUR EMAIL FROM (eg: no-reply <no-reply@dify.ai>)'
       # the api-key for resend (https://resend.com)
       RESEND_API_KEY: ''
+      RESEND_API_URL: https://api.resend.com
     depends_on:
       - db
       - redis
@@ -200,7 +206,7 @@ services:
 
   # Frontend web application.
   web:
-    image: langgenius/dify-web:0.4.4
+    image: langgenius/dify-web:0.5.6
     restart: always
     environment:
       EDITION: SELF_HOSTED
@@ -236,7 +242,7 @@ services:
     # ports:
     #   - "5432:5432"
     healthcheck:
-      test: ["CMD", "pg_isready"]
+      test: [ "CMD", "pg_isready" ]
       interval: 1s
       timeout: 3s
       retries: 30
@@ -251,7 +257,7 @@ services:
     # Set the redis password when startup redis server.
     command: redis-server --requirepass difyai123456
     healthcheck:
-      test: ["CMD", "redis-cli","ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
     # uncomment to expose redis port to host
     # ports:
     #   - "6379:6379"
@@ -285,7 +291,7 @@ services:
   # (if uncommented, you need to comment out the weaviate service above,
   # and set VECTOR_STORE to qdrant in the api & worker service.)
   # qdrant:
-  #   image: langgenius/qdrant:latest
+  #   image: langgenius/qdrant:v1.7.3
   #   restart: always
   #   volumes:
   #     - ./volumes/qdrant:/qdrant/storage

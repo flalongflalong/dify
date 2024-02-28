@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -x
+
+# python style checks rely on `ruff` in path
+if ! command -v ruff &> /dev/null; then
+    echo "Installing Ruff ..."
+    pip install ruff
+fi
+
+# run ruff linter
+ruff check --fix ./api

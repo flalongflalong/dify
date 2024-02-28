@@ -2,10 +2,9 @@ import os
 from typing import Generator
 
 import pytest
-
-from core.model_runtime.entities.message_entities import SystemPromptMessage, UserPromptMessage, AssistantPromptMessage
-from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, \
-    LLMResultChunkDelta
+from core.model_runtime.entities.llm_entities import LLMResult, LLMResultChunk, LLMResultChunkDelta
+from core.model_runtime.entities.message_entities import (AssistantPromptMessage, PromptMessageTool,
+                                                          SystemPromptMessage, UserPromptMessage)
 from core.model_runtime.errors.validate import CredentialsValidateFailedError
 from core.model_runtime.model_providers.zhipuai.llm.llm import ZhipuAILargeLanguageModel
 
@@ -104,3 +103,48 @@ def test_get_num_tokens():
     )
 
     assert num_tokens == 14
+
+def test_get_tools_num_tokens():
+    model = ZhipuAILargeLanguageModel()
+
+    num_tokens = model.get_num_tokens(
+        model='tools',
+        credentials={
+            'api_key': os.environ.get('ZHIPUAI_API_KEY')
+        },
+        tools=[
+            PromptMessageTool(
+                name='get_current_weather',
+                description='Get the current weather in a given location',
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                        "type": "string",
+                            "description": "The city and state e.g. San Francisco, CA"
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": [
+                                "c",
+                                "f"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "location"
+                    ]
+                }
+            )
+        ],
+        prompt_messages=[
+            SystemPromptMessage(
+                content='You are a helpful AI assistant.',
+            ),
+            UserPromptMessage(
+                content='Hello World!'
+            )
+        ]
+    )
+
+    assert num_tokens == 108

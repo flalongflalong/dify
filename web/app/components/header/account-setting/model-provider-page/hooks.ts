@@ -16,7 +16,6 @@ import {
   ConfigurateMethodEnum,
   ModelTypeEnum,
 } from './declarations'
-import { languageMaps } from './utils'
 import I18n from '@/context/i18n'
 import {
   fetchDefaultModal,
@@ -59,8 +58,7 @@ export const useSystemDefaultModelAndModelList: UseDefaultModelAndModelList = (
 
 export const useLanguage = () => {
   const { locale } = useContext(I18n)
-
-  return languageMaps[locale]
+  return locale.replace('-', '_')
 }
 
 export const useProviderCrenditialsFormSchemasValue = (
@@ -101,12 +99,13 @@ export const useProviderCrenditialsFormSchemasValue = (
   return value
 }
 
-export type ModelTypeIndex = 1 | 2 | 3 | 4
+export type ModelTypeIndex = 1 | 2 | 3 | 4 | 5
 export const MODEL_TYPE_MAPS = {
   1: ModelTypeEnum.textGeneration,
   2: ModelTypeEnum.textEmbedding,
   3: ModelTypeEnum.rerank,
   4: ModelTypeEnum.speech2text,
+  5: ModelTypeEnum.tts,
 }
 
 export const useModelList = (type: ModelTypeIndex) => {
@@ -150,20 +149,6 @@ export const useTextGenerationCurrentProviderAndModelAndModelList = (defaultMode
     currentProvider,
     currentModel,
     textGenerationModelList,
-  }
-}
-
-export const useAgentThoughtCurrentProviderAndModelAndModelList = (defaultModel?: DefaultModel) => {
-  const { agentThoughtModelList } = useProviderContext()
-  const {
-    currentProvider,
-    currentModel,
-  } = useCurrentProviderAndModel(agentThoughtModelList, defaultModel)
-
-  return {
-    currentProvider,
-    currentModel,
-    agentThoughtModelList,
   }
 }
 
@@ -258,14 +243,12 @@ export const useModelProviders = () => {
   }
 }
 
-export const useUpdateModelProvidersAndModelList = () => {
+export const useUpdateModelProviders = () => {
   const { mutate } = useSWRConfig()
-  const updateModelList = useUpdateModelList()
 
-  const updateModelProvidersAndModelList = useCallback(() => {
+  const updateModelProviders = useCallback(() => {
     mutate('/workspaces/current/model-providers')
-    updateModelList(1)
-  }, [mutate, updateModelList])
+  }, [mutate])
 
-  return updateModelProvidersAndModelList
+  return updateModelProviders
 }

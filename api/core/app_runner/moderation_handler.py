@@ -1,9 +1,9 @@
 import logging
 import threading
 import time
-from typing import Any, Optional, Dict
+from typing import Any, Optional
 
-from flask import current_app, Flask
+from flask import Flask, current_app
 from pydantic import BaseModel
 
 from core.application_queue_manager import PublishFrom
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class ModerationRule(BaseModel):
     type: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class OutputModerationHandler(BaseModel):
@@ -117,7 +117,7 @@ class OutputModerationHandler(BaseModel):
 
                 # trigger replace event
                 if self.thread_running:
-                    self.on_message_replace_func(final_output)
+                    self.on_message_replace_func(final_output, PublishFrom.TASK_PIPELINE)
 
                 if result.action == ModerationAction.DIRECT_OUTPUT:
                     break

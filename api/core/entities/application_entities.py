@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Any, cast
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -42,6 +42,7 @@ class AdvancedCompletionPromptTemplateEntity(BaseModel):
     """
     Advanced Completion Prompt Template Entity.
     """
+
     class RolePrefixEntity(BaseModel):
         """
         Role Prefix Entity.
@@ -57,6 +58,7 @@ class PromptTemplateEntity(BaseModel):
     """
     Prompt Template Entity.
     """
+
     class PromptType(Enum):
         """
         Prompt Type.
@@ -97,6 +99,7 @@ class DatasetRetrieveConfigEntity(BaseModel):
     """
     Dataset Retrieve Config Entity.
     """
+
     class RetrieveStrategy(Enum):
         """
         Dataset Retrieve Strategy.
@@ -143,6 +146,15 @@ class SensitiveWordAvoidanceEntity(BaseModel):
     config: dict[str, Any] = {}
 
 
+class TextToSpeechEntity(BaseModel):
+    """
+    Sensitive Word Avoidance Entity.
+    """
+    enabled: bool
+    voice: Optional[str] = None
+    language: Optional[str] = None
+
+
 class FileUploadEntity(BaseModel):
     """
     File Upload Entity.
@@ -154,14 +166,44 @@ class AgentToolEntity(BaseModel):
     """
     Agent Tool Entity.
     """
-    tool_id: str
-    config: dict[str, Any] = {}
+    provider_type: Literal["builtin", "api"]
+    provider_id: str
+    tool_name: str
+    tool_parameters: dict[str, Any] = {}
+
+
+class AgentPromptEntity(BaseModel):
+    """
+    Agent Prompt Entity.
+    """
+    first_prompt: str
+    next_iteration: str
+
+
+class AgentScratchpadUnit(BaseModel):
+    """
+    Agent First Prompt Entity.
+    """
+
+    class Action(BaseModel):
+        """
+        Action Entity.
+        """
+        action_name: str
+        action_input: Union[dict, str]
+
+    agent_response: Optional[str] = None
+    thought: Optional[str] = None
+    action_str: Optional[str] = None
+    observation: Optional[str] = None
+    action: Optional[Action] = None
 
 
 class AgentEntity(BaseModel):
     """
     Agent Entity.
     """
+
     class Strategy(Enum):
         """
         Agent Strategy.
@@ -172,7 +214,9 @@ class AgentEntity(BaseModel):
     provider: str
     model: str
     strategy: Strategy
-    tools: list[AgentToolEntity] = []
+    prompt: Optional[AgentPromptEntity] = None
+    tools: list[AgentToolEntity] = None
+    max_iteration: int = 5
 
 
 class AppOrchestrationConfigEntity(BaseModel):
@@ -192,6 +236,7 @@ class AppOrchestrationConfigEntity(BaseModel):
     show_retrieve_source: bool = False
     more_like_this: bool = False
     speech_to_text: bool = False
+    text_to_speech: dict = {}
     sensitive_word_avoidance: Optional[SensitiveWordAvoidanceEntity] = None
 
 
@@ -256,7 +301,6 @@ class ApplicationGenerateEntity(BaseModel):
     query: Optional[str] = None
     files: list[FileObj] = []
     user_id: str
-
     # extras
     stream: bool
     invoke_from: InvokeFrom

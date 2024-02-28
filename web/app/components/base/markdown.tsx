@@ -87,7 +87,7 @@ export function Markdown(props: { content: string; className?: string }) {
   return (
     <div className={cn(props.className, 'markdown-body')}>
       <ReactMarkdown
-        remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
+        remarkPlugins={[[RemarkMath, { singleDollarTextMath: false }], RemarkGfm, RemarkBreaks]}
         rehypePlugins={[
           RehypeKatex,
         ]}
@@ -143,8 +143,39 @@ export function Markdown(props: { content: string; className?: string }) {
                 </code>
               )
           },
+          img({ src, alt, ...props }) {
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={alt}
+                width={250}
+                height={250}
+                className="max-w-full h-auto align-middle border-none rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out mt-2 mb-2"
+                {...props}
+              />
+            )
+          },
+          p: (paragraph) => {
+            const { node }: any = paragraph
+            if (node.children[0].tagName === 'img') {
+              const image = node.children[0]
+
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={image.properties.src}
+                  width={250}
+                  height={250}
+                  className="max-w-full h-auto align-middle border-none rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out mt-2 mb-2"
+                  alt={image.properties.alt}
+                />
+              )
+            }
+            return <p>{paragraph.children}</p>
+          },
         }}
-        linkTarget={'_blank'}
+        linkTarget='_blank'
       >
         {/* Markdown detect has problem. */}
         {props.content}

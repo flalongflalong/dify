@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import Type
 
 from langchain.tools import BaseTool
-from pydantic import Field, BaseModel
+from pydantic import BaseModel, Field
 
 
 class DatetimeToolInput(BaseModel):
@@ -12,7 +11,7 @@ class DatetimeToolInput(BaseModel):
 class DatetimeTool(BaseTool):
     """Tool for querying current datetime."""
     name: str = "current_datetime"
-    args_schema: Type[BaseModel] = DatetimeToolInput
+    args_schema: type[BaseModel] = DatetimeToolInput
     description: str = "A tool when you want to get the current date, time, week, month or year, " \
                        "and the time zone is UTC. Result is \"<date> <time> <timezone> <week>\"."
 

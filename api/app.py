@@ -1,4 +1,3 @@
-# -*- coding:utf-8 -*-
 import os
 
 from werkzeug.exceptions import Unauthorized
@@ -13,30 +12,40 @@ if not os.environ.get("DEBUG") or os.environ.get("DEBUG").lower() != 'true':
     import langchain
     langchain.verbose = True
 
-import time
-import logging
 import json
+import logging
 import threading
+import time
+import warnings
 
-from flask import Flask, request, Response
+from flask import Flask, Response, request
 from flask_cors import CORS
 
-from extensions import ext_celery, ext_sentry, ext_redis, ext_login, ext_migrate, \
-    ext_database, ext_storage, ext_mail, ext_code_based_extension, ext_hosting_provider
+from commands import register_commands
+from config import CloudEditionConfig, Config
+from extensions import (
+    ext_celery,
+    ext_code_based_extension,
+    ext_database,
+    ext_hosting_provider,
+    ext_login,
+    ext_mail,
+    ext_migrate,
+    ext_redis,
+    ext_sentry,
+    ext_storage,
+)
 from extensions.ext_database import db
 from extensions.ext_login import login_manager
+from libs.passport import PassportService
+from services.account_service import AccountService
 
 # DO NOT REMOVE BELOW
-from models import model, account, dataset, web, task, source, tool
 from events import event_handlers
+from models import account, dataset, model, source, task, tool, tools, web
 # DO NOT REMOVE ABOVE
 
-from config import Config, CloudEditionConfig
-from commands import register_commands
-from services.account_service import AccountService
-from libs.passport import PassportService
 
-import warnings
 warnings.simplefilter("ignore", ResourceWarning)
 
 # fix windows platform
@@ -125,6 +134,7 @@ def load_user_from_request(request_from_flask_login):
     else:
         return None
 
+
 @login_manager.unauthorized_handler
 def unauthorized_handler():
     """Handle unauthorized requests."""
@@ -136,10 +146,10 @@ def unauthorized_handler():
 
 # register blueprint routers
 def register_blueprints(app):
-    from controllers.service_api import bp as service_api_bp
-    from controllers.web import bp as web_bp
     from controllers.console import bp as console_app_bp
     from controllers.files import bp as files_bp
+    from controllers.service_api import bp as service_api_bp
+    from controllers.web import bp as web_bp
 
     CORS(service_api_bp,
          allow_headers=['Content-Type', 'Authorization', 'X-App-Code'],

@@ -25,7 +25,7 @@ import Link from 'next/link'
 import s from './style.module.css'
 import { fetchDatasetDetail, fetchDatasetRelatedApps } from '@/service/datasets'
 import type { RelatedApp, RelatedAppResponse } from '@/models/datasets'
-import { getLocaleOnClient } from '@/i18n/client'
+import { getLocaleOnClient } from '@/i18n'
 import AppSideBar from '@/app/components/app-sidebar'
 import Divider from '@/app/components/base/divider'
 import Indicator from '@/app/components/header/indicator'
@@ -35,6 +35,7 @@ import FloatPopoverContainer from '@/app/components/base/float-popover-container
 import DatasetDetailContext from '@/context/dataset-detail'
 import { DataSourceType } from '@/models/datasets'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import { LanguagesSupported } from '@/i18n/language'
 
 export type IAppDetailLayoutProps = {
   children: React.ReactNode
@@ -55,23 +56,23 @@ const LikedItem = ({
   isMobile,
 }: ILikedItemProps) => {
   return (
-    <Link className={classNames(s.itemWrapper, 'px-0 sm:px-3 justify-center sm:justify-start')} href={`/app/${detail?.id}/overview`}>
-      <div className={classNames(s.iconWrapper, 'mr-0 sm:mr-2')}>
-        <AppIcon size='tiny' icon={detail?.icon} background={detail?.icon_background}/>
+    <Link className={classNames(s.itemWrapper, 'px-0', isMobile && 'justify-center')} href={`/app/${detail?.id}/overview`}>
+      <div className={classNames(s.iconWrapper, 'mr-0')}>
+        <AppIcon size='tiny' icon={detail?.icon} background={detail?.icon_background} />
         {type === 'app' && (
           <div className={s.statusPoint}>
             <Indicator color={appStatus ? 'green' : 'gray'} />
           </div>
         )}
       </div>
-      {!isMobile && <div className={s.appInfo}>{detail?.name || '--'}</div>}
+      {!isMobile && <div className={classNames(s.appInfo, 'ml-2')}>{detail?.name || '--'}</div>}
     </Link>
   )
 }
 
 const TargetIcon = ({ className }: SVGProps<SVGElement>) => {
   return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className ?? ''}>
-    <g clip-path="url(#clip0_4610_6951)">
+    <g clipPath="url(#clip0_4610_6951)">
       <path d="M10.6666 5.33325V3.33325L12.6666 1.33325L13.3332 2.66659L14.6666 3.33325L12.6666 5.33325H10.6666ZM10.6666 5.33325L7.9999 7.99988M14.6666 7.99992C14.6666 11.6818 11.6818 14.6666 7.99992 14.6666C4.31802 14.6666 1.33325 11.6818 1.33325 7.99992C1.33325 4.31802 4.31802 1.33325 7.99992 1.33325M11.3333 7.99992C11.3333 9.84087 9.84087 11.3333 7.99992 11.3333C6.15897 11.3333 4.66659 9.84087 4.66659 7.99992C4.66659 6.15897 6.15897 4.66659 7.99992 4.66659" stroke="#344054" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
     </g>
     <defs>
@@ -147,8 +148,12 @@ const ExtraInfo = ({ isMobile, relatedApps }: IExtraInfoProps) => {
           <div className='text-xs text-gray-500 mt-2'>{t('common.datasetMenus.emptyTip')}</div>
           <a
             className='inline-flex items-center text-xs text-primary-600 mt-2 cursor-pointer'
-            href={`https://docs.dify.ai/${locale === 'zh-Hans' ? 'v/zh-hans' : ''}/application/prompt-engineering`}
-            target='_blank'
+            href={
+              locale === LanguagesSupported[1]
+                ? 'https://docs.dify.ai/v/zh-hans/guides/application-design/prompt-engineering'
+                : 'https://docs.dify.ai/user-guide/creating-dify-apps/prompt-engineering'
+            }
+            target='_blank' rel='noopener noreferrer'
           >
             <BookOpenIcon className='mr-1' />
             {t('common.datasetMenus.viewDoc')}
@@ -197,14 +202,14 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
     return <Loading />
 
   return (
-    <div className='flex overflow-hidden'>
+    <div className='grow flex overflow-hidden'>
       {!hideSideBar && <AppSideBar
         title={datasetRes?.name || '--'}
         icon={datasetRes?.icon || 'https://static.dify.ai/images/dataset-default-icon.png'}
         icon_background={datasetRes?.icon_background || '#F5F5F5'}
         desc={datasetRes?.description || '--'}
         navigation={navigation}
-        extraInfo={<ExtraInfo isMobile={isMobile} relatedApps={relatedApps} />}
+        extraInfo={mode => <ExtraInfo isMobile={mode === 'collapse'} relatedApps={relatedApps} />}
         iconType={datasetRes?.data_source_type === DataSourceType.NOTION ? 'notion' : 'dataset'}
       />}
       <DatasetDetailContext.Provider value={{
