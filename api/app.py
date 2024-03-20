@@ -51,7 +51,9 @@ warnings.simplefilter("ignore", ResourceWarning)
 
 # fix windows platform
 if os.name == "nt":
-    os.system('tzutil /s "UTC"')    
+    # os.system('tzutil /s "UTC"') 
+    os.system('tzutil /s "China Standard Time"') 
+    
 else:
     os.environ['TZ'] = 'UTC'
     time.tzset()
