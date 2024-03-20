@@ -44,7 +44,7 @@ export type VariableInput = {
 /**
  * App modes
  */
-export const AppModes = ['completion', 'chat'] as const
+export const AppModes = ['advanced-chat', 'agent-chat', 'chat', 'completion', 'workflow'] as const
 export type AppMode = typeof AppModes[number]
 
 /**
@@ -278,6 +278,8 @@ export type App = {
   id: string
   /** Name */
   name: string
+  /** Description */
+  description: string
 
   /** Icon */
   icon: string
@@ -286,7 +288,6 @@ export type App = {
 
   /** Mode */
   mode: AppMode
-  is_agent: boolean
   /** Enable web app */
   enable_site: boolean
   /** Enable web API */

@@ -7,15 +7,17 @@ import cn from 'classnames'
 import TextGenerationRes from '@/app/components/app/text-generate/item'
 import NoData from '@/app/components/share/text-generation/no-data'
 import Toast from '@/app/components/base/toast'
-import { sendCompletionMessage, updateFeedback } from '@/service/share'
+import { sendCompletionMessage, sendWorkflowMessage, updateFeedback } from '@/service/share'
 import type { Feedbacktype } from '@/app/components/app/chat/type'
 import Loading from '@/app/components/base/loading'
 import type { PromptConfig } from '@/models/debug'
 import type { InstalledApp } from '@/models/explore'
 import type { ModerationService } from '@/models/common'
 import { TransferMethod, type VisionFile, type VisionSettings } from '@/types/app'
+import { BlockEnum } from '@/app/components/workflow/types'
 
 export type IResultProps = {
+  isWorkflow: boolean
   isCallBatchAPI: boolean
   isPC: boolean
   isMobile: boolean
@@ -40,6 +42,7 @@ export type IResultProps = {
 }
 
 const Result: FC<IResultProps> = ({
+  isWorkflow,
   isCallBatchAPI,
   isPC,
   isMobile,
@@ -176,34 +179,80 @@ const Result: FC<IResultProps> = ({
         isTimeout = true
       }
     }, 1000)
-    sendCompletionMessage(data, {
-      onData: (data: string, _isFirstMessage: boolean, { messageId }) => {
-        tempMessageId = messageId
-        res.push(data)
-        setCompletionRes(res.join(''))
-      },
-      onCompleted: () => {
-        if (isTimeout)
-          return
 
-        setRespondingFalse()
-        setMessageId(tempMessageId)
-        onCompleted(getCompletionRes(), taskId, true)
-        clearInterval(runId)
-      },
-      onMessageReplace: (messageReplace) => {
-        res = [messageReplace.answer]
-        setCompletionRes(res.join(''))
-      },
-      onError() {
-        if (isTimeout)
-          return
-
-        setRespondingFalse()
-        onCompleted(getCompletionRes(), taskId, false)
-        clearInterval(runId)
-      },
-    }, isInstalledApp, installedAppInfo?.id)
+    if (isWorkflow) {
+      // ###TODO###
+      let outputsExisted = false
+      sendWorkflowMessage(
+        data,
+        {
+          onWorkflowStarted: ({ workflow_run_id }) => {
+            tempMessageId = workflow_run_id
+            // console.log('onWorkflowStarted runID: ', workflow_run_id)
+          },
+          onNodeStarted: ({ data }) => {
+            // console.log('onNodeStarted: ', data.node_type)
+          },
+          onNodeFinished: ({ data }) => {
+            // console.log('onNodeFinished: ', data.node_type, data)
+            if (data.node_type === BlockEnum.LLM && data.outputs.text)
+              setCompletionRes(data.outputs.text)
+            if (data.node_type === BlockEnum.End && data.outputs)
+              outputsExisted = true
+          },
+          onWorkflowFinished: ({ data }) => {
+            // console.log('onWorkflowFinished: ', data)
+            if (isTimeout)
+              return
+            if (data.error) {
+              notify({ type: 'error', message: data.error })
+              setRespondingFalse()
+              onCompleted(getCompletionRes(), taskId, false)
+              clearInterval(runId)
+              return
+            }
+            if (!outputsExisted) {
+              notify({ type: 'info', message: 'Outputs not existed.' })
+              setCompletionRes('')
+            }
+            setRespondingFalse()
+            setMessageId(tempMessageId)
+            onCompleted(getCompletionRes(), taskId, true)
+            clearInterval(runId)
+          },
+        },
+        isInstalledApp,
+        installedAppInfo?.id,
+      )
+    }
+    else {
+      sendCompletionMessage(data, {
+        onData: (data: string, _isFirstMessage: boolean, { messageId }) => {
+          tempMessageId = messageId
+          res.push(data)
+          setCompletionRes(res.join(''))
+        },
+        onCompleted: () => {
+          if (isTimeout)
+            return
+          setRespondingFalse()
+          setMessageId(tempMessageId)
+          onCompleted(getCompletionRes(), taskId, true)
+          clearInterval(runId)
+        },
+        onMessageReplace: (messageReplace) => {
+          res = [messageReplace.answer]
+          setCompletionRes(res.join(''))
+        },
+        onError() {
+          if (isTimeout)
+            return
+          setRespondingFalse()
+          onCompleted(getCompletionRes(), taskId, false)
+          clearInterval(runId)
+        },
+      }, isInstalledApp, installedAppInfo?.id)
+    }
   }
 
   const [controlClearMoreLikeThis, setControlClearMoreLikeThis] = useState(0)
@@ -221,6 +270,7 @@ const Result: FC<IResultProps> = ({
 
   const renderTextGenerationRes = () => (
     <TextGenerationRes
+      isWorkflow={isWorkflow}
       className='mt-3'
       isError={isError}
       onRetry={handleSend}

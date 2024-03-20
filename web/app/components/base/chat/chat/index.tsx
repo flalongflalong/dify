@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useThrottleEffect } from 'ahooks'
@@ -25,6 +26,8 @@ import { ChatContextProvider } from './context'
 import type { Emoji } from '@/app/components/tools/types'
 import Button from '@/app/components/base/button'
 import { StopCircle } from '@/app/components/base/icons/src/vender/solid/mediaAndDevices'
+import PromptLogModal from '@/app/components/base/prompt-log-modal'
+import { useStore as useAppStore } from '@/app/components/app/store'
 
 export type ChatProps = {
   chatList: ChatItem[]
@@ -73,6 +76,8 @@ const Chat: FC<ChatProps> = ({
   onFeedback,
 }) => {
   const { t } = useTranslation()
+  const { currentLogItem, setCurrentLogItem, showPromptLogModal, setShowPromptLogModal } = useAppStore()
+  const [width, setWidth] = useState(0)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const chatContainerInnerRef = useRef<HTMLDivElement>(null)
   const chatFooterRef = useRef<HTMLDivElement>(null)
@@ -85,6 +90,9 @@ const Chat: FC<ChatProps> = ({
   }, [])
 
   const handleWindowResize = useCallback(() => {
+    if (chatContainerRef.current)
+      setWidth(document.body.clientWidth - (chatContainerRef.current?.clientWidth + 16) - 8)
+
     if (chatContainerRef.current && chatFooterRef.current)
       chatFooterRef.current.style.width = `${chatContainerRef.current.clientWidth}px`
 
@@ -174,6 +182,7 @@ const Chat: FC<ChatProps> = ({
                       answerIcon={answerIcon}
                       responding={isLast && isResponding}
                       allToolIcons={allToolIcons}
+                      showPromptLog={showPromptLog}
                     />
                   )
                 }
@@ -181,9 +190,7 @@ const Chat: FC<ChatProps> = ({
                   <Question
                     key={item.id}
                     item={item}
-                    showPromptLog={showPromptLog}
                     questionIcon={questionIcon}
-                    isResponding={isResponding}
                   />
                 )
               })
@@ -230,6 +237,16 @@ const Chat: FC<ChatProps> = ({
             }
           </div>
         </div>
+        {showPromptLogModal && (
+          <PromptLogModal
+            width={width}
+            currentLogItem={currentLogItem}
+            onCancel={() => {
+              setCurrentLogItem()
+              setShowPromptLogModal(false)
+            }}
+          />
+        )}
       </div>
     </ChatContextProvider>
   )

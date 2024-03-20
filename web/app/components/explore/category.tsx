@@ -29,13 +29,10 @@ const Category: FC<ICategoryProps> = ({
   const { t } = useTranslation()
   const isAllCategories = !list.includes(value)
 
-  const itemClassName = (isSelected: boolean) =>
-    cn(
-      isSelected
-        ? 'bg-white text-primary-600 border-gray-200 font-semibold shadow-[0px_1px_2px_rgba(16,24,40,0.05)]'
-        : 'border-transparent font-medium',
-      'flex items-center h-7 px-3 border cursor-pointer rounded-lg',
-    )
+  const itemClassName = (isSelected: boolean) => cn(
+    'px-3 py-[5px] h-[28px] rounded-lg border-[0.5px] border-transparent text-gray-700 font-medium leading-[18px] cursor-pointer hover:bg-gray-200',
+    isSelected && 'bg-white border-gray-200 shadow-xs text-primary-600 hover:bg-white',
+  )
 
   return (
     <div className={cn(className, 'flex space-x-1 text-[13px] flex-wrap')}>

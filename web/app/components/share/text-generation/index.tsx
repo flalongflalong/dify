@@ -55,11 +55,13 @@ type Task = {
 export type IMainProps = {
   isInstalledApp?: boolean
   installedAppInfo?: InstalledApp
+  isWorkflow?: boolean
 }
 
 const TextGeneration: FC<IMainProps> = ({
   isInstalledApp = false,
   installedAppInfo,
+  isWorkflow = false,
 }) => {
   const { notify } = Toast
 
@@ -331,17 +333,23 @@ const TextGeneration: FC<IMainProps> = ({
     if (!isInstalledApp)
       await checkOrSetAccessToken()
 
-    return Promise.all([isInstalledApp
-      ? {
-        app_id: installedAppInfo?.id,
-        site: {
-          title: installedAppInfo?.app.name,
-          prompt_public: false,
-          copyright: '',
-        },
-        plan: 'basic',
-      }
-      : fetchAppInfo(), fetchAppParams(isInstalledApp, installedAppInfo?.id), fetchSavedMessage()])
+    return Promise.all([
+      isInstalledApp
+        ? {
+          app_id: installedAppInfo?.id,
+          site: {
+            title: installedAppInfo?.app.name,
+            prompt_public: false,
+            copyright: '',
+          },
+          plan: 'basic',
+        }
+        : fetchAppInfo(),
+      fetchAppParams(isInstalledApp, installedAppInfo?.id),
+      !isWorkflow
+        ? fetchSavedMessage()
+        : {},
+    ])
   }
 
   useEffect(() => {
@@ -392,6 +400,7 @@ const TextGeneration: FC<IMainProps> = ({
 
   const renderRes = (task?: Task) => (<Res
     key={task?.id}
+    isWorkflow={isWorkflow}
     isCallBatchAPI={isCallBatchAPI}
     isPC={isPC}
     isMobile={isMobile}
@@ -531,18 +540,20 @@ const TextGeneration: FC<IMainProps> = ({
             items={[
               { id: 'create', name: t('share.generation.tabs.create') },
               { id: 'batch', name: t('share.generation.tabs.batch') },
-              {
-                id: 'saved',
-                name: t('share.generation.tabs.saved'),
-                isRight: true,
-                extra: savedMessages.length > 0
-                  ? (
-                    <div className='ml-1 flext items-center h-5 px-1.5 rounded-md border border-gray-200 text-gray-500 text-xs font-medium'>
-                      {savedMessages.length}
-                    </div>
-                  )
-                  : null,
-              },
+              ...(!isWorkflow
+                ? [{
+                  id: 'saved',
+                  name: t('share.generation.tabs.saved'),
+                  isRight: true,
+                  extra: savedMessages.length > 0
+                    ? (
+                      <div className='ml-1 flext items-center h-5 px-1.5 rounded-md border border-gray-200 text-gray-500 text-xs font-medium'>
+                        {savedMessages.length}
+                      </div>
+                    )
+                    : null,
+                }]
+                : []),
             ]}
             value={currTab}
             onChange={setCurrTab}

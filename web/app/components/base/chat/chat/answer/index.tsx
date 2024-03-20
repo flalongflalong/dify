@@ -27,6 +27,7 @@ type AnswerProps = {
   answerIcon?: ReactNode
   responding?: boolean
   allToolIcons?: Record<string, string | Emoji>
+  showPromptLog?: boolean
 }
 const Answer: FC<AnswerProps> = ({
   item,
@@ -36,6 +37,7 @@ const Answer: FC<AnswerProps> = ({
   answerIcon,
   responding,
   allToolIcons,
+  showPromptLog,
 }) => {
   const { t } = useTranslation()
   const {
@@ -75,6 +77,7 @@ const Answer: FC<AnswerProps> = ({
                   item={item}
                   question={question}
                   index={index}
+                  showPromptLog={showPromptLog}
                 />
               )
             }

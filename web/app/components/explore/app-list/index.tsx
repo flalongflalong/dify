@@ -1,6 +1,7 @@
 'use client'
-import type { FC } from 'react'
+
 import React from 'react'
+import cn from 'classnames'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import { useContext } from 'use-context-selector'
@@ -12,25 +13,38 @@ import type { App } from '@/models/explore'
 import Category from '@/app/components/explore/category'
 import AppCard from '@/app/components/explore/app-card'
 import { fetchAppDetail, fetchAppList } from '@/service/explore'
-import { createApp } from '@/service/apps'
+import { importApp } from '@/service/apps'
 import { useTabSearchParams } from '@/hooks/use-tab-searchparams'
 import CreateAppModal from '@/app/components/explore/create-app-modal'
 import type { CreateAppModalProps } from '@/app/components/explore/create-app-modal'
 import Loading from '@/app/components/base/loading'
 import { NEED_REFRESH_APP_LIST_KEY } from '@/config'
-import { type AppMode } from '@/types/app'
 import { useAppContext } from '@/context/app-context'
+import { getRedirection } from '@/utils/app-redirection'
 
-const Apps: FC = () => {
+type AppsProps = {
+  pageType?: PageType
+}
+
+export enum PageType {
+  EXPLORE = 'explore',
+  CREATE = 'create',
+}
+
+const Apps = ({
+  pageType = PageType.EXPLORE,
+}: AppsProps) => {
   const { t } = useTranslation()
   const { isCurrentWorkspaceManager } = useAppContext()
-  const router = useRouter()
+  const { push } = useRouter()
   const { hasEditPermission } = useContext(ExploreContext)
   const allCategoriesEn = t('explore.apps.allCategories', { lng: 'en' })
 
   const [currCategory, setCurrCategory] = useTabSearchParams({
     defaultTab: allCategoriesEn,
+    disableSearchParams: pageType !== PageType.EXPLORE,
   })
+
   const {
     data: { categories, allList },
   } = useSWR(
@@ -59,18 +73,18 @@ const Apps: FC = () => {
     name,
     icon,
     icon_background,
+    description,
   }) => {
-    const { app_model_config: model_config } = await fetchAppDetail(
+    const { export_data } = await fetchAppDetail(
       currApp?.app.id as string,
     )
-
     try {
-      const app = await createApp({
+      const app = await importApp({
+        data: export_data,
         name,
         icon,
         icon_background,
-        mode: currApp?.app.mode as AppMode,
-        config: model_config,
+        description,
       })
       setIsShowCreateModal(false)
       Toast.notify({
@@ -78,11 +92,7 @@ const Apps: FC = () => {
         message: t('app.newApp.appCreated'),
       })
       localStorage.setItem(NEED_REFRESH_APP_LIST_KEY, '1')
-      router.push(
-        `/app/${app.id}/${
-          isCurrentWorkspaceManager ? 'configuration' : 'overview'
-        }`,
-      )
+      getRedirection(isCurrentWorkspaceManager, app, push)
     }
     catch (e) {
       Toast.notify({ type: 'error', message: t('app.newApp.appCreateFailed') })
@@ -98,29 +108,37 @@ const Apps: FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col border-l border-gray-200">
-      <div className="shrink-0 pt-6 px-12">
-        <div className={`mb-1 ${s.textGradient} text-xl font-semibold`}>
-          {t('explore.apps.title')}
+    <div className={cn(
+      'flex flex-col',
+      pageType === PageType.EXPLORE ? 'h-full border-l border-gray-200' : 'h-[calc(100%-76px)]',
+    )}>
+      {pageType === PageType.EXPLORE && (
+        <div className='shrink-0 pt-6 px-12'>
+          <div className={`mb-1 ${s.textGradient} text-xl font-semibold`}>{t('explore.apps.title')}</div>
+          <div className='text-gray-500 text-sm'>{t('explore.apps.description')}</div>
         </div>
-        <div className="text-gray-500 text-sm">
-          {t('explore.apps.description')}
-        </div>
-      </div>
+      )}
       <Category
-        className="mt-6 px-12"
+        className={cn(pageType === PageType.EXPLORE ? 'mt-6 px-12' : 'px-8 py-2')}
         list={categories}
         value={currCategory}
         onChange={setCurrCategory}
         allCategoriesEn={allCategoriesEn}
       />
-      <div className="relative flex flex-1 mt-6 pb-6 flex-col overflow-auto bg-gray-100 shrink-0 grow">
+      <div className={cn(
+        'relative flex flex-1 pb-6 flex-col overflow-auto bg-gray-100 shrink-0 grow',
+        pageType === PageType.EXPLORE ? 'mt-6' : 'mt-0 pt-2',
+      )}>
         <nav
-          className={`${s.appList} grid content-start gap-4 px-6 sm:px-12 shrink-0`}
-        >
+          className={cn(
+            s.appList,
+            'grid content-start shrink-0',
+            pageType === PageType.EXPLORE ? 'gap-4 px-6 sm:px-12' : 'gap-3 px-8',
+          )}>
           {currList.map(app => (
             <AppCard
               key={app.app_id}
+              isExplore={pageType === PageType.EXPLORE}
               app={app}
               canCreate={hasEditPermission}
               onCreate={() => {
@@ -131,10 +149,12 @@ const Apps: FC = () => {
           ))}
         </nav>
       </div>
-
       {isShowCreateModal && (
         <CreateAppModal
+          appIcon={currApp?.app.icon || ''}
+          appIconBackground={currApp?.app.icon_background || ''}
           appName={currApp?.app.name || ''}
+          appDescription={currApp?.app.description || ''}
           show={isShowCreateModal}
           onConfirm={onCreate}
           onHide={() => setIsShowCreateModal(false)}
