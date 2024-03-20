@@ -342,12 +342,20 @@ class AnthropicLargeLanguageModel(LargeLanguageModel):
         Convert prompt messages to dict list and system
         """
         system = ""
-        prompt_message_dicts = []
-
+        first_loop = True
         for message in prompt_messages:
             if isinstance(message, SystemPromptMessage):
-                system += message.content + ("\n" if not system else "")
-            else:
+                message.content=message.content.strip()
+                if first_loop:
+                    system=message.content
+                    first_loop=False
+                else:
+                    system+="\n"
+                    system+=message.content
+
+        prompt_message_dicts = []
+        for message in prompt_messages:
+            if not isinstance(message, SystemPromptMessage):
                 prompt_message_dicts.append(self._convert_prompt_message_to_dict(message))
 
         return system, prompt_message_dicts
@@ -424,8 +432,25 @@ class AnthropicLargeLanguageModel(LargeLanguageModel):
 
         if isinstance(message, UserPromptMessage):
             message_text = f"{human_prompt} {content}"
+            if not isinstance(message.content, list):
+                message_text = f"{ai_prompt} {content}"
+            else:
+                message_text = ""
+                for sub_message in message.content:
+                    if sub_message.type == PromptMessageContentType.TEXT:
+                        message_text += f"{human_prompt} {sub_message.data}"
+                    elif sub_message.type == PromptMessageContentType.IMAGE:
+                        message_text += f"{human_prompt} [IMAGE]"
         elif isinstance(message, AssistantPromptMessage):
-            message_text = f"{ai_prompt} {content}"
+            if not isinstance(message.content, list):
+                message_text = f"{ai_prompt} {content}"
+            else:
+                message_text = ""
+                for sub_message in message.content:
+                    if sub_message.type == PromptMessageContentType.TEXT:
+                        message_text += f"{ai_prompt} {sub_message.data}"
+                    elif sub_message.type == PromptMessageContentType.IMAGE:
+                        message_text += f"{ai_prompt} [IMAGE]"
         elif isinstance(message, SystemPromptMessage):
             message_text = content
         else:
