@@ -2,12 +2,15 @@ import json
 from collections import defaultdict
 from typing import Any, Optional
 
+from flask import current_app
 from pydantic import BaseModel
 
 from core.rag.datasource.keyword.jieba.jieba_keyword_table_handler import JiebaKeywordTableHandler
 from core.rag.datasource.keyword.keyword_base import BaseKeyword
 from core.rag.models.document import Document
 from extensions.ext_database import db
+from extensions.ext_redis import redis_client
+from extensions.ext_storage import storage
 from models.dataset import Dataset, DatasetKeywordTable, DocumentSegment
 
 
@@ -107,6 +110,9 @@ class Jieba(BaseKeyword):
         if dataset_keyword_table:
             db.session.delete(dataset_keyword_table)
             db.session.commit()
+            if dataset_keyword_table.data_source_type != 'database':
+                file_key = 'keyword_files/' + self.dataset.tenant_id + '/' + self.dataset.id + '.txt'
+                storage.delete(file_key)
 
     def _save_dataset_keyword_table(self, keyword_table):
         keyword_table_dict = {
@@ -117,30 +123,45 @@ class Jieba(BaseKeyword):
                 "table": keyword_table
             }
         }
-        self.dataset.dataset_keyword_table.keyword_table = json.dumps(keyword_table_dict, cls=SetEncoder)
-        db.session.commit()
+        dataset_keyword_table = self.dataset.dataset_keyword_table
+        keyword_data_source_type = dataset_keyword_table.data_source_type
+        if keyword_data_source_type == 'database':
+            dataset_keyword_table.keyword_table = json.dumps(keyword_table_dict, cls=SetEncoder)
+            db.session.commit()
+        else:
+            file_key = 'keyword_files/' + self.dataset.tenant_id + '/' + self.dataset.id + '.txt'
+            if storage.exists(file_key):
+                storage.delete(file_key)
+            storage.save(file_key, json.dumps(keyword_table_dict, cls=SetEncoder).encode('utf-8'))
 
     def _get_dataset_keyword_table(self) -> Optional[dict]:
-        dataset_keyword_table = self.dataset.dataset_keyword_table
-        if dataset_keyword_table:
-            if dataset_keyword_table.keyword_table_dict:
-                return dataset_keyword_table.keyword_table_dict['__data__']['table']
-        else:
-            dataset_keyword_table = DatasetKeywordTable(
-                dataset_id=self.dataset.id,
-                keyword_table=json.dumps({
-                    '__type__': 'keyword_table',
-                    '__data__': {
-                        "index_id": self.dataset.id,
-                        "summary": None,
-                        "table": {}
-                    }
-                }, cls=SetEncoder)
-            )
-            db.session.add(dataset_keyword_table)
-            db.session.commit()
+        lock_name = 'keyword_indexing_lock_{}'.format(self.dataset.id)
+        with redis_client.lock(lock_name, timeout=20):
+            dataset_keyword_table = self.dataset.dataset_keyword_table
+            if dataset_keyword_table:
+                keyword_table_dict = dataset_keyword_table.keyword_table_dict
+                if keyword_table_dict:
+                    return keyword_table_dict['__data__']['table']
+            else:
+                keyword_data_source_type = current_app.config['KEYWORD_DATA_SOURCE_TYPE']
+                dataset_keyword_table = DatasetKeywordTable(
+                    dataset_id=self.dataset.id,
+                    keyword_table='',
+                    data_source_type=keyword_data_source_type,
+                )
+                if keyword_data_source_type == 'database':
+                    dataset_keyword_table.keyword_table = json.dumps({
+                        '__type__': 'keyword_table',
+                        '__data__': {
+                            "index_id": self.dataset.id,
+                            "summary": None,
+                            "table": {}
+                        }
+                    }, cls=SetEncoder)
+                db.session.add(dataset_keyword_table)
+                db.session.commit()
 
-        return {}
+            return {}
 
     def _add_text_to_keyword_table(self, keyword_table: dict, id: str, keywords: list[str]) -> dict:
         for keyword in keywords:

@@ -22,6 +22,7 @@ DEFAULTS = {
     'SERVICE_API_URL': 'https://api.dify.ai',
     'APP_WEB_URL': 'https://udify.app',
     'FILES_URL': '',
+    'S3_ADDRESS_STYLE': 'auto',
     'STORAGE_TYPE': 'local',
     'STORAGE_LOCAL_PATH': 'storage',
     'CHECK_UPDATE_URL': 'https://updates.dify.ai',
@@ -63,8 +64,8 @@ DEFAULTS = {
     'ETL_TYPE': 'dify',
     'KEYWORD_STORE': 'jieba',
     'BATCH_UPLOAD_LIMIT': 20,
-    'CODE_EXECUTION_ENDPOINT': '',
-    'CODE_EXECUTION_API_KEY': ''
+    'TOOL_ICON_CACHE_MAX_AGE': 3600,
+    'KEYWORD_DATA_SOURCE_TYPE': 'database',
 }
 
 
@@ -95,7 +96,7 @@ class Config:
         # ------------------------
         # General Configurations.
         # ------------------------
-        self.CURRENT_VERSION = "0.5.10"
+        self.CURRENT_VERSION = "0.5.11-fix1"
         self.COMMIT_SHA = get_env('COMMIT_SHA')
         self.EDITION = "SELF_HOSTED"
         self.DEPLOY_ENV = get_env('DEPLOY_ENV')
@@ -186,6 +187,11 @@ class Config:
         self.S3_ACCESS_KEY = get_env('S3_ACCESS_KEY')
         self.S3_SECRET_KEY = get_env('S3_SECRET_KEY')
         self.S3_REGION = get_env('S3_REGION')
+        self.S3_ADDRESS_STYLE = get_env('S3_ADDRESS_STYLE')
+        self.AZURE_BLOB_ACCOUNT_NAME = get_env('AZURE_BLOB_ACCOUNT_NAME')
+        self.AZURE_BLOB_ACCOUNT_KEY = get_env('AZURE_BLOB_ACCOUNT_KEY')
+        self.AZURE_BLOB_CONTAINER_NAME = get_env('AZURE_BLOB_CONTAINER_NAME')
+        self.AZURE_BLOB_ACCOUNT_URL = get_env('AZURE_BLOB_ACCOUNT_URL')
 
         # ------------------------
         # Vector Store Configurations.
@@ -307,7 +313,9 @@ class Config:
         self.CODE_EXECUTION_API_KEY = get_env('CODE_EXECUTION_API_KEY')
 
         self.API_COMPRESSION_ENABLED = get_bool_env('API_COMPRESSION_ENABLED')
+        self.TOOL_ICON_CACHE_MAX_AGE = get_env('TOOL_ICON_CACHE_MAX_AGE')
 
+        self.KEYWORD_DATA_SOURCE_TYPE = get_env('KEYWORD_DATA_SOURCE_TYPE')
 
 class CloudEditionConfig(Config):
 

@@ -49,7 +49,51 @@ class RecommendedAppListApi(Resource):
         else:
             language_prefix = languages[0]
 
-        return RecommendedAppService.get_recommended_apps_and_categories(language_prefix)
+        if len(recommended_apps) == 0:
+            recommended_apps = db.session.query(RecommendedApp).filter(
+                RecommendedApp.is_listed == True,
+                RecommendedApp.language == languages[0]
+            ).all()
+
+        categories = set()
+        current_user.role = TenantService.get_user_role(current_user, current_user.current_tenant)
+        recommended_apps_result = []
+        for recommended_app in recommended_apps:
+            installed = db.session.query(InstalledApp).filter(
+                and_(
+                    InstalledApp.app_id == recommended_app.app_id,
+                    InstalledApp.tenant_id == current_user.current_tenant_id
+                )
+            ).first() is not None
+
+            app = recommended_app.app
+            if not app or not app.is_public:
+                continue
+
+            site = app.site
+            if not site:
+                continue
+
+            recommended_app_result = {
+                'id': recommended_app.id,
+                'app': app,
+                'app_id': recommended_app.app_id,
+                'description': site.description,
+                'copyright': site.copyright,
+                'privacy_policy': site.privacy_policy,
+                'category': recommended_app.category,
+                'position': recommended_app.position,
+                'is_listed': recommended_app.is_listed,
+                'install_count': recommended_app.install_count,
+                'installed': installed,
+                'editable': current_user.role in ['owner', 'admin'],
+                "is_agent": app.is_agent
+            }
+            recommended_apps_result.append(recommended_app_result)
+
+            categories.add(recommended_app.category)  # add category to categories
+
+        return {'recommended_apps': recommended_apps_result, 'categories': list(categories)}
 
 
 class RecommendedAppApi(Resource):
