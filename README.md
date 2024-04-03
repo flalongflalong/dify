@@ -1,4 +1,4 @@
-[![](./images/describe.png)](https://dify.ai)
+[![](./images/GitHub_README_cover.png)](https://dify.ai)
 <p align="center">
   <a href="./README.md">English</a> |
   <a href="./README_CN.md">简体中文</a> |
@@ -27,7 +27,7 @@
   </a>
 </p>
 
-**Dify** is an LLM application development platform that has helped built over **100,000** applications. It integrates BaaS and LLMOps, covering the essential tech stack for building generative AI-native applications, including a built-in RAG engine. Dify allows you to **deploy your own version of Assistants API and GPTs, based on any LLMs.**
+**Dify** is an open-source LLM app development platform. Dify's intuitive interface combines a RAG pipeline, AI workflow orchestration, agent capabilities, model management, observability features and more, letting you quickly go from prototype to production.
 
 ![](./images/demo.png)
 
@@ -100,10 +100,12 @@ docker compose up -d
 
 After running, you can access the Dify dashboard in your browser at [http://localhost/install](http://localhost/install) and start the initialization installation process.
 
-### Helm Chart
+#### Deploy with Helm Chart
 
-Big thanks to @BorisPolonsky for providing us with a [Helm Chart](https://helm.sh/) version, which allows Dify to be deployed on Kubernetes.
-You can go to https://github.com/BorisPolonsky/dify-helm for deployment information.
+[Helm Chart](https://helm.sh/) version, which allows Dify to be deployed on Kubernetes.
+
+- [Helm Chart by @LeoQuote](https://github.com/douban/charts/tree/master/charts/dify)
+- [Helm Chart by @BorisPolonsky](https://github.com/BorisPolonsky/dify-helm)
 
 ### Configuration
 
@@ -120,6 +122,10 @@ For those who'd like to contribute code, see our [Contribution Guide](https://gi
 
 At the same time, please consider supporting Dify by sharing it on social media and at events and conferences.
 
+### Projects made by community
+
+- [Chatbot Chrome Extension by @charli117](https://github.com/langgenius/chatbot-chrome-extension)
+
 ### Contributors
 
 <a href="https://github.com/langgenius/dify/graphs/contributors">
@@ -128,7 +134,7 @@ At the same time, please consider supporting Dify by sharing it on social media 
 
 ### Translations
 
-We are looking for contributors to help with translating Dify to languages other than Mandarin or English. If you are interested in helping, please see the [i18n README](https://github.com/langgenius/dify/blob/main/web/i18n/README_EN.md) for more information, and leave us a comment in the `global-users` channel of our [Discord Community Server](https://discord.gg/AhzKf7dNgk).
+We are looking for contributors to help with translating Dify to languages other than Mandarin or English. If you are interested in helping, please see the [i18n README](https://github.com/langgenius/dify/blob/main/web/i18n/README.md) for more information, and leave us a comment in the `global-users` channel of our [Discord Community Server](https://discord.gg/8Tpq4AcN9c).
 
 ## Community & Support
 

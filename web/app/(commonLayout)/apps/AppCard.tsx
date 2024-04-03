@@ -275,12 +275,7 @@ const AppCard = ({ app, onRefresh }: AppCardProps) => {
                 '!hidden h-8 w-8 !p-2 rounded-md border-none hover:!bg-gray-100 group-hover:!inline-flex',
               )
             }
-            className={'!w-[128px] h-fit !z-20'}
-            popupClassName={
-              (app.mode === 'completion' || app.mode === 'chat')
-                ? '!w-[238px] translate-x-[-110px]'
-                : ''
-            }
+            className={'!w-[128px] h-fit !z-0'}
             manualClose
           />}
         </div>
