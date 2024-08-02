@@ -3,7 +3,7 @@ const translation = {
     line1: 'プロンプト',
     line2: 'エンジニアリング',
   },
-  orchestrate: 'Orchestrate',
+  orchestrate: 'オーケストレーション',
   promptMode: {
     simple: 'エキスパートモードに切り替えて、PROMPT全体を編集します',
     advanced: 'エキスパートモード',
@@ -38,7 +38,6 @@ const translation = {
     description: 'LLMプロバイダーキーが設定されていません。デバッグする前に設定する必要があります。',
     settingBtn: '設定に移動',
   },
-
   trailUseGPT4Info: {
     title: '現在、gpt-4はサポートされていません',
     description: 'gpt-4を使用するには、APIキーを設定してください。',
@@ -161,7 +160,6 @@ const translation = {
     toolbox: {
       title: 'ツールボックス',
     },
-
     moderation: {
       title: 'コンテンツのモデレーション',
       description: 'モデレーションAPIを使用するか、機密語リストを維持することで、モデルの出力を安全にします。',
@@ -200,24 +198,59 @@ const translation = {
         },
       },
     },
-
   },
-  automatic: {
-    title: '自動アプリケーションオーケストレーション',
-    description: 'シナリオを説明してください。Difyがアプリケーションをあなたのためにオーケストレートします。',
-    intendedAudience: '誰が想定されるターゲットですか？',
-    intendedAudiencePlaceHolder: '例：学生',
-    solveProblem: 'どのような問題をAIが解決できると期待していますか？',
-    solveProblemPlaceHolder: '例：学業成績の評価',
+  generate: {
+    title: 'プロンプト生成器',
+    description: 'プロンプト生成器は、設定済みのモデルを使って、高品質で構造的に優れたプロンプトを作成するための最適化を行います。具体的で詳細な指示をお書きください。',
+    tryIt: '試してみる',
+    instruction: '指示',
+    instructionPlaceHolder: '具体的で明確な指示を入力してください。',
     generate: '生成',
-    audiencesRequired: 'ターゲットが必要です',
-    problemRequired: '問題が必要です',
-    resTitle: '次のアプリケーションをあなたのためにオーケストレートしました。',
-    apply: 'このオーケストレーションを適用する',
-    noData: '左側にユースケースを記述し、オーケストレーションプレビューがここに表示されます。',
-    loading: 'アプリケーションのオーケストレーションを実行しています...',
-    overwriteTitle: '既存の構成を上書きしますか？',
-    overwriteMessage: 'このオーケストレーションを適用すると、既存の構成が上書きされます。',
+    resTitle: '生成されたプロンプト',
+    noDataLine1: '左側に使用例を記入してください,',
+    noDataLine2: 'オーケストレーションのプレビューがこちらに表示されます。',
+    apply: '適用',
+    loading: 'アプリケーションを処理中です',
+    overwriteTitle: '既存の設定を上書きしますか？',
+    overwriteMessage: 'このプロンプトを適用すると、既存の設定が上書きされます。',
+    template: {
+      pythonDebugger: {
+        name: 'Python デバッガー',
+        instruction: '指示に従ってコードを生成し、デバッグを行うボット',
+      },
+      translation: {
+        name: '翻訳',
+        instruction: '複数言語に対応した翻訳機能',
+      },
+      professionalAnalyst: {
+        name: '専門アナリスト',
+        instruction: '長文のレポートから洞察を引き出し、リスクを特定し、重要情報をまとめる',
+      },
+      excelFormulaExpert: {
+        name: 'エクセル式エキスパート',
+        instruction: 'ユーザーの指示に基づき、エクセル式の理解、使用、作成をサポートするチャットボット',
+      },
+      travelPlanning: {
+        name: '旅行計画',
+        instruction: 'ユーザーが簡単に旅行計画を立てられるように設計されたツール',
+      },
+      SQLSorcerer: {
+        name: 'SQLソーサラー',
+        instruction: '日常言語をSQLクエリに変換する',
+      },
+      GitGud: {
+        name: 'Git gud',
+        instruction: 'ユーザーが記述したバージョン管理アクションに対応するGitコマンドを生成する',
+      },
+      meetingTakeaways: {
+        name: '会議の要点',
+        instruction: '議題、重要点、行動項目を含む要約を作成する',
+      },
+      writingsPolisher: {
+        name: 'ライティングポリッシャー',
+        instruction: '文章を改善するための高度な編集技法を用いる',
+      },
+    },
   },
   resetConfig: {
     title: 'リセットを確認しますか？',
@@ -263,20 +296,34 @@ const translation = {
     queryNoBeEmpty: 'プロンプトにクエリを設定する必要があります',
   },
   variableConig: {
-    modalTitle: 'フィールド設定',
-    description: '変数 {{varName}} の設定',
-    fieldType: 'フィールドタイプ',
-    string: '短いテキスト',
-    paragraph: '段落',
-    select: '選択',
-    notSet: '未設定、接頭辞プロンプトに {{input}} を入力してみてください',
-    stringTitle: 'フォームテキストボックスのオプション',
-    maxLength: '最大長',
-    options: 'オプション',
-    addOption: 'オプションを追加',
-    apiBasedVar: 'APIベースの変数',
+    'addModalTitle': '入力フィールドを追加',
+    'editModalTitle': '入力フィールドを編集',
+    'description': '{{varName}} の変数設定',
+    'fieldType': 'フィールドタイプ',
+    'string': '短文',
+    'text-input': '短文',
+    'paragraph': '段落',
+    'select': '選択',
+    'number': '数値',
+    'notSet': '設定されていません。プレフィックスのプロンプトで {{input}} を入力してみてください。',
+    'stringTitle': 'フォームテキストボックスオプション',
+    'maxLength': '最大長',
+    'options': 'オプション',
+    'addOption': 'オプションを追加',
+    'apiBasedVar': 'APIベースの変数',
+    'varName': '変数名',
+    'labelName': 'ラベル名',
+    'inputPlaceholder': '入力してください',
+    'content': 'コンテンツ',
+    'required': '必須',
+    'errorMsg': {
+      varNameRequired: '変数名は必須です',
+      labelNameRequired: 'ラベル名は必須です',
+      varNameCanBeRepeat: '変数名は繰り返すことができません',
+      atLeastOneOption: '少なくとも1つのオプションが必要です',
+      optionRepeat: '繰り返しオプションがあります',
+    },
   },
-
   vision: {
     name: 'ビジョン',
     description: 'ビジョンを有効にすると、モデルが画像を受け取り、それに関する質問に答えることができます。',
@@ -306,12 +353,15 @@ const translation = {
       language: '言語',
       resolutionTooltip: 'テキスト読み上げの音声言語をサポートします。',
       voice: '音声',
+      autoPlay: '自動再生',
+      autoPlayEnabled: '開ける',
+      autoPlayDisabled: '關閉',
     },
   },
   openingStatement: {
     title: '会話開始',
     add: '追加',
-    writeOpner: 'オープナーを書く',
+    writeOpener: 'オープナーを書く',
     placeholder: 'ここにオープナーメッセージを書いてください。変数を使用できます。{{variable}} を入力してみてください。',
     openingQuestion: '開始質問',
     noDataPlaceHolder:
@@ -346,6 +396,7 @@ const translation = {
   result: '出力テキスト',
   datasetConfig: {
     settingTitle: 'リトリーバル設定',
+    knowledgeTip: 'ナレッジを追加するには「+」ボタンをクリックしてください',
     retrieveOneWay: {
       title: 'N-to-1 リトリーバル',
       description: 'ユーザーの意図とナレッジの説明に基づいて、エージェントが自律的に最適なナレッジを選択します。個々の、限られたナレッジを持つアプリケーションに最適です。',
@@ -362,7 +413,6 @@ const translation = {
     score_thresholdTip: 'チャンクフィルタリングの類似性閾値を設定するために使用されます。',
     retrieveChangeTip: 'インデックスモードとリトリーバルモードを変更すると、このナレッジに関連付けられたアプリケーションに影響を与える可能性があります。',
   },
-
   debugAsSingleModel: '単一モデルでデバッグ',
   debugAsMultipleModel: '複数モデルでデバッグ',
   duplicateModel: '複製',

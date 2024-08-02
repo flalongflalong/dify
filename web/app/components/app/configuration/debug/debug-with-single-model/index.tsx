@@ -15,7 +15,7 @@ import { useDebugConfigurationContext } from '@/context/debug-configuration'
 import type { OnSend } from '@/app/components/base/chat/types'
 import { useProviderContext } from '@/context/provider-context'
 import {
-  fetchConvesationMessages,
+  fetchConversationMessages,
   fetchSuggestedQuestions,
   stopChatMessageResponding,
 } from '@/service/debug'
@@ -94,7 +94,7 @@ const DebugWithSingleModel = forwardRef<DebugWithSingleModelRefType, DebugWithSi
       `apps/${appId}/chat-messages`,
       data,
       {
-        onGetConvesationMessages: (conversationId, getAbortController) => fetchConvesationMessages(appId, conversationId, getAbortController),
+        onGetConvesationMessages: (conversationId, getAbortController) => fetchConversationMessages(appId, conversationId, getAbortController),
         onGetSuggestedQuestions: (responseItemId, getAbortController) => fetchSuggestedQuestions(appId, responseItemId, getAbortController),
       },
     )
@@ -119,7 +119,7 @@ const DebugWithSingleModel = forwardRef<DebugWithSingleModelRefType, DebugWithSi
       config={config}
       chatList={chatList}
       isResponding={isResponding}
-      chatContainerclassName='p-6'
+      chatContainerClassName='p-6'
       chatFooterClassName='px-6 pt-10 pb-4'
       suggestedQuestions={suggestedQuestions}
       onSend={doSend}

@@ -4,7 +4,7 @@ We need to be nimble and ship fast given where we are, but we also want to make 
 
 This guide, like Dify itself, is a constant work in progress. We highly appreciate your understanding if at times it lags behind the actual project, and welcome any feedback for us to improve.
 
-In terms of licensing, please take a minute to read our short [License and Contributor Agreement](./license). The community also adheres to the [code of conduct](https://github.com/langgenius/.github/blob/main/CODE_OF_CONDUCT.md).
+In terms of licensing, please take a minute to read our short [License and Contributor Agreement](./LICENSE). The community also adheres to the [code of conduct](https://github.com/langgenius/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ## Before you jump in
 
@@ -36,7 +36,7 @@ In terms of licensing, please take a minute to read our short [License and Contr
   | Feature Type                                                 | Priority        |
   | ------------------------------------------------------------ | --------------- |
   | High-Priority Features as being labeled by a team member     | High Priority   |
-  | Popular feature requests from our [community feedback board](https://feedback.dify.ai/) | Medium Priority |
+  | Popular feature requests from our [community feedback board](https://github.com/langgenius/dify/discussions/categories/feedbacks) | Medium Priority |
   | Non-core features and minor enhancements                     | Low Priority    |
   | Valuable but not immediate                                   | Future-Feature  |
 
@@ -81,7 +81,7 @@ Dify requires the following dependencies to build, make sure they're installed o
 
 Dify is composed of a backend and a frontend. Navigate to the backend directory by `cd api/`, then follow the [Backend README](api/README.md) to install it. In a separate terminal, navigate to the frontend directory by `cd web/`, then follow the [Frontend README](web/README.md) to install.
 
-Check the [installation FAQ](https://docs.dify.ai/getting-started/faq/install-faq) for a list of common issues and steps to troubleshoot.
+Check the [installation FAQ](https://docs.dify.ai/learn-more/faq/self-host-faq) for a list of common issues and steps to troubleshoot.
 
 ### 5. Visit dify in your browser
 

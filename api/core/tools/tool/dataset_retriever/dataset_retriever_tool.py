@@ -1,15 +1,14 @@
-from typing import Optional
 
-from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from core.callback_handler.index_tool_callback_handler import DatasetIndexToolCallbackHandler
 from core.rag.datasource.retrieval_service import RetrievalService
+from core.rag.retrieval.retrival_methods import RetrievalMethod
+from core.tools.tool.dataset_retriever.dataset_retriever_base_tool import DatasetRetrieverBaseTool
 from extensions.ext_database import db
 from models.dataset import Dataset, Document, DocumentSegment
 
 default_retrieval_model = {
-    'search_method': 'semantic_search',
+    'search_method': RetrievalMethod.SEMANTIC_SEARCH.value,
     'reranking_enable': False,
     'reranking_model': {
         'reranking_provider_name': '',
@@ -24,19 +23,13 @@ class DatasetRetrieverToolInput(BaseModel):
     query: str = Field(..., description="Query for the dataset to be used to retrieve the dataset.")
 
 
-class DatasetRetrieverTool(BaseTool):
+class DatasetRetrieverTool(DatasetRetrieverBaseTool):
     """Tool for querying a Dataset."""
     name: str = "dataset"
     args_schema: type[BaseModel] = DatasetRetrieverToolInput
     description: str = "use this to retrieve a dataset. "
-
-    tenant_id: str
     dataset_id: str
-    top_k: int = 2
-    score_threshold: Optional[float] = None
-    hit_callbacks: list[DatasetIndexToolCallbackHandler] = []
-    return_resource: bool
-    retriever_from: str
+
 
     @classmethod
     def from_dataset(cls, dataset: Dataset, **kwargs):
@@ -46,7 +39,7 @@ class DatasetRetrieverTool(BaseTool):
 
         description = description.replace('\n', '').replace('\r', '')
         return cls(
-            name=f'dataset-{dataset.id}',
+            name=f"dataset_{dataset.id.replace('-', '_')}",
             tenant_id=dataset.tenant_id,
             dataset_id=dataset.id,
             description=description,
@@ -85,7 +78,8 @@ class DatasetRetrieverTool(BaseTool):
                                                       score_threshold=retrieval_model['score_threshold']
                                                       if retrieval_model['score_threshold_enabled'] else None,
                                                       reranking_model=retrieval_model['reranking_model']
-                                                      if retrieval_model['reranking_enable'] else None
+                                                      if retrieval_model['reranking_enable'] else None,
+                                                      weights=retrieval_model.get('weights', None),
                                                       )
             else:
                 documents = []
@@ -95,7 +89,7 @@ class DatasetRetrieverTool(BaseTool):
             document_score_list = {}
             if dataset.indexing_technique != "economy":
                 for item in documents:
-                    if 'score' in item.metadata and item.metadata['score']:
+                    if item.metadata.get('score'):
                         document_score_list[item.metadata['doc_id']] = item.metadata['score']
             document_context_list = []
             index_node_ids = [document.metadata['doc_id'] for document in documents]
@@ -113,9 +107,9 @@ class DatasetRetrieverTool(BaseTool):
                                                                                            float('inf')))
                 for segment in sorted_segments:
                     if segment.answer:
-                        document_context_list.append(f'question:{segment.content} answer:{segment.answer}')
+                        document_context_list.append(f'question:{segment.get_sign_content()} answer:{segment.answer}')
                     else:
-                        document_context_list.append(segment.content)
+                        document_context_list.append(segment.get_sign_content())
                 if self.return_resource:
                     context_list = []
                     resource_number = 1
@@ -154,6 +148,3 @@ class DatasetRetrieverTool(BaseTool):
                         hit_callback.return_retriever_resource_info(context_list)
 
             return str("\n".join(document_context_list))
-
-    async def _arun(self, tool_input: str) -> str:
-        raise NotImplementedError()

@@ -2,16 +2,19 @@
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import cn from 'classnames'
+import {
+  RiErrorWarningFill,
+} from '@remixicon/react'
 import { useBoolean, useClickAway } from 'ahooks'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import TabHeader from '../../base/tab-header'
 import Button from '../../base/button'
 import { checkOrSetAccessToken } from '../utils'
-import { AlertCircle } from '../../base/icons/src/vender/solid/alertsAndFeedback'
 import s from './style.module.css'
 import RunBatch from './run-batch'
 import ResDownload from './run-batch/res-download'
+import cn from '@/utils/classnames'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import RunOnce from '@/app/components/share/text-generation/run-once'
 import { fetchSavedMessage as doFetchSavedMessage, fetchAppInfo, fetchAppParams, removeMessage, saveMessage } from '@/service/share'
@@ -55,11 +58,13 @@ type Task = {
 export type IMainProps = {
   isInstalledApp?: boolean
   installedAppInfo?: InstalledApp
+  isWorkflow?: boolean
 }
 
 const TextGeneration: FC<IMainProps> = ({
   isInstalledApp = false,
   installedAppInfo,
+  isWorkflow = false,
 }) => {
   const { notify } = Toast
 
@@ -69,10 +74,24 @@ const TextGeneration: FC<IMainProps> = ({
   const isTablet = media === MediaType.tablet
   const isMobile = media === MediaType.mobile
 
-  const [currTab, setCurrTab] = useState<string>('create')
+  const searchParams = useSearchParams()
+  const mode = searchParams.get('mode') || 'create'
+  const [currentTab, setCurrentTab] = useState<string>(['create', 'batch'].includes(mode) ? mode : 'create')
+
+  const router = useRouter()
+  const pathname = usePathname()
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams)
+    if (params.has('mode')) {
+      params.delete('mode')
+      router.replace(`${pathname}?${params.toString()}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Notice this situation isCallBatchAPI but not in batch tab
   const [isCallBatchAPI, setIsCallBatchAPI] = useState(false)
-  const isInBatchTab = currTab === 'batch'
+  const isInBatchTab = currentTab === 'batch'
   const [inputs, setInputs] = useState<Record<string, any>>({})
   const [appId, setAppId] = useState<string>('')
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
@@ -159,7 +178,12 @@ const TextGeneration: FC<IMainProps> = ({
     promptConfig?.prompt_variables.forEach((v) => {
       res[v.name] = inputs[v.key]
     })
-    res[t('share.generation.completionResult')] = batchCompletionResLatest[task.id]
+    let result = batchCompletionResLatest[task.id]
+    // task might return multiple fields, should marshal object to string
+    if (typeof batchCompletionResLatest[task.id] === 'object')
+      result = JSON.stringify(result)
+
+    res[t('share.generation.completionResult')] = result
     return res
   })
   const checkBatchInputs = (data: string[][]) => {
@@ -331,17 +355,23 @@ const TextGeneration: FC<IMainProps> = ({
     if (!isInstalledApp)
       await checkOrSetAccessToken()
 
-    return Promise.all([isInstalledApp
-      ? {
-        app_id: installedAppInfo?.id,
-        site: {
-          title: installedAppInfo?.app.name,
-          prompt_public: false,
-          copyright: '',
-        },
-        plan: 'basic',
-      }
-      : fetchAppInfo(), fetchAppParams(isInstalledApp, installedAppInfo?.id), fetchSavedMessage()])
+    return Promise.all([
+      isInstalledApp
+        ? {
+          app_id: installedAppInfo?.id,
+          site: {
+            title: installedAppInfo?.app.name,
+            prompt_public: false,
+            copyright: '',
+          },
+          plan: 'basic',
+        }
+        : fetchAppInfo(),
+      fetchAppParams(isInstalledApp, installedAppInfo?.id),
+      !isWorkflow
+        ? fetchSavedMessage()
+        : {},
+    ])
   }
 
   useEffect(() => {
@@ -353,7 +383,7 @@ const TextGeneration: FC<IMainProps> = ({
       setCanReplaceLogo(can_replace_logo)
       changeLanguage(siteInfo.default_language)
 
-      const { user_input_form, more_like_this, file_upload, text_to_speech, sensitive_word_avoidance }: any = appParams
+      const { user_input_form, more_like_this, file_upload, text_to_speech }: any = appParams
       setVisionConfig({
         ...file_upload.image,
         image_file_size_limit: appParams?.system_parameters?.image_file_size_limit,
@@ -392,6 +422,7 @@ const TextGeneration: FC<IMainProps> = ({
 
   const renderRes = (task?: Task) => (<Res
     key={task?.id}
+    isWorkflow={isWorkflow}
     isCallBatchAPI={isCallBatchAPI}
     isPC={isPC}
     isMobile={isMobile}
@@ -411,6 +442,7 @@ const TextGeneration: FC<IMainProps> = ({
     visionConfig={visionConfig}
     completionFiles={completionFiles}
     isShowTextToSpeech={!!textToSpeechConfig?.enabled}
+    siteInfo={siteInfo}
   />)
 
   const renderBatchRes = () => {
@@ -438,19 +470,19 @@ const TextGeneration: FC<IMainProps> = ({
       }
     >
       <>
-        <div className='shrink-0 flex items-center justify-between'>
+        <div className='flex items-center justify-between shrink-0'>
           <div className='flex items-center space-x-3'>
             <div className={s.starIcon}></div>
-            <div className='text-lg text-gray-800 font-semibold'>{t('share.generation.title')}</div>
+            <div className='text-lg font-semibold text-gray-800'>{t('share.generation.title')}</div>
           </div>
           <div className='flex items-center space-x-2'>
             {allFailedTaskList.length > 0 && (
               <div className='flex items-center'>
-                <AlertCircle className='w-4 h-4 text-[#D92D20]' />
+                <RiErrorWarningFill className='w-4 h-4 text-[#D92D20]' />
                 <div className='ml-1 text-[#D92D20]'>{t('share.generation.batchFailed.info', { num: allFailedTaskList.length })}</div>
                 <Button
-                  type='primary'
-                  className='ml-2 !h-8 !px-3'
+                  variant='primary'
+                  className='ml-2'
                   onClick={handleRetryAllFailedTask}
                 >{t('share.generation.batchFailed.retry')}</Button>
                 <div className='mx-3 w-[1px] h-3.5 bg-gray-200'></div>
@@ -473,7 +505,7 @@ const TextGeneration: FC<IMainProps> = ({
           </div>
         </div>
 
-        <div className='grow overflow-y-auto'>
+        <div className='overflow-y-auto grow'>
           {!isCallBatchAPI ? renderRes() : renderBatchRes()}
           {!noPendingTask && (
             <div className='mt-4'>
@@ -506,14 +538,14 @@ const TextGeneration: FC<IMainProps> = ({
           'shrink-0 relative flex flex-col pb-10 h-full border-r border-gray-100 bg-white',
         )}>
           <div className='mb-6'>
-            <div className='flex justify-between items-center'>
+            <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
                 <AppIcon size="small" icon={siteInfo.icon} background={siteInfo.icon_background || appDefaultIconBackground} />
-                <div className='text-lg text-gray-800 font-semibold'>{siteInfo.title}</div>
+                <div className='text-lg font-semibold text-gray-800'>{siteInfo.title}</div>
               </div>
               {!isPC && (
                 <Button
-                  className='shrink-0 !h-8 !px-3 ml-2'
+                  className='shrink-0 ml-2'
                   onClick={showResSidebar}
                 >
                   <div className='flex items-center space-x-2 text-primary-600 text-[13px] font-medium'>
@@ -531,24 +563,26 @@ const TextGeneration: FC<IMainProps> = ({
             items={[
               { id: 'create', name: t('share.generation.tabs.create') },
               { id: 'batch', name: t('share.generation.tabs.batch') },
-              {
-                id: 'saved',
-                name: t('share.generation.tabs.saved'),
-                isRight: true,
-                extra: savedMessages.length > 0
-                  ? (
-                    <div className='ml-1 flext items-center h-5 px-1.5 rounded-md border border-gray-200 text-gray-500 text-xs font-medium'>
-                      {savedMessages.length}
-                    </div>
-                  )
-                  : null,
-              },
+              ...(!isWorkflow
+                ? [{
+                  id: 'saved',
+                  name: t('share.generation.tabs.saved'),
+                  isRight: true,
+                  extra: savedMessages.length > 0
+                    ? (
+                      <div className='ml-1 flext items-center h-5 px-1.5 rounded-md border border-gray-200 text-gray-500 text-xs font-medium'>
+                        {savedMessages.length}
+                      </div>
+                    )
+                    : null,
+                }]
+                : []),
             ]}
-            value={currTab}
-            onChange={setCurrTab}
+            value={currentTab}
+            onChange={setCurrentTab}
           />
-          <div className='grow h-20 overflow-y-auto'>
-            <div className={cn(currTab === 'create' ? 'block' : 'hidden')}>
+          <div className='h-20 overflow-y-auto grow'>
+            <div className={cn(currentTab === 'create' ? 'block' : 'hidden')}>
               <RunOnce
                 siteInfo={siteInfo}
                 inputs={inputs}
@@ -567,13 +601,13 @@ const TextGeneration: FC<IMainProps> = ({
               />
             </div>
 
-            {currTab === 'saved' && (
+            {currentTab === 'saved' && (
               <SavedItems
                 className='mt-4'
                 isShowTextToSpeech={textToSpeechConfig?.enabled}
                 list={savedMessages}
                 onRemove={handleRemoveSavedMessage}
-                onStartCreateContent={() => setCurrTab('create')}
+                onStartCreateContent={() => setCurrentTab('create')}
               />
             )}
           </div>
@@ -589,7 +623,7 @@ const TextGeneration: FC<IMainProps> = ({
                 <div>·</div>
                 <div>{t('share.chat.privacyPolicyLeft')}
                   <a
-                    className='text-gray-500'
+                    className='text-gray-500 px-1'
                     href={siteInfo.privacy_policy}
                     target='_blank' rel='noopener noreferrer'>{t('share.chat.privacyPolicyMiddle')}</a>
                   {t('share.chat.privacyPolicyRight')}

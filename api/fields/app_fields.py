@@ -5,7 +5,8 @@ from libs.helper import TimestampField
 app_detail_kernel_fields = {
     'id': fields.String,
     'name': fields.String,
-    'mode': fields.String,
+    'description': fields.String,
+    'mode': fields.String(attribute='mode_compatible_with_agent'),
     'icon': fields.String,
     'icon_background': fields.String,
 }
@@ -36,21 +37,20 @@ model_config_fields = {
     'completion_prompt_config': fields.Raw(attribute='completion_prompt_config_dict'),
     'dataset_configs': fields.Raw(attribute='dataset_configs_dict'),
     'file_upload': fields.Raw(attribute='file_upload_dict'),
+    'created_at': TimestampField
 }
 
 app_detail_fields = {
     'id': fields.String,
     'name': fields.String,
-    'mode': fields.String,
-    'is_agent': fields.Boolean,
+    'description': fields.String,
+    'mode': fields.String(attribute='mode_compatible_with_agent'),
     'icon': fields.String,
     'icon_background': fields.String,
     'enable_site': fields.Boolean,
     'enable_api': fields.Boolean,
-    'api_rpm': fields.Integer,
-    'api_rph': fields.Integer,
-    'is_demo': fields.Boolean,
-    'model_config': fields.Nested(model_config_fields, attribute='app_model_config'),
+    'model_config': fields.Nested(model_config_fields, attribute='app_model_config', allow_null=True),
+    'tracing': fields.Raw,
     'created_at': TimestampField
 }
 
@@ -63,19 +63,25 @@ model_config_partial_fields = {
     'pre_prompt': fields.String,
 }
 
+tag_fields = {
+    'id': fields.String,
+    'name': fields.String,
+    'type': fields.String
+}
+
 app_partial_fields = {
     'id': fields.String,
     'name': fields.String,
-    'mode': fields.String,
-    'is_agent': fields.Boolean,
+    'max_active_requests': fields.Raw(),
+    'description': fields.String(attribute='desc_or_prompt'),
+    'mode': fields.String(attribute='mode_compatible_with_agent'),
     'icon': fields.String,
     'icon_background': fields.String,
-    'enable_site': fields.Boolean,
-    'enable_api': fields.Boolean,
-    'is_demo': fields.Boolean,
-    'model_config': fields.Nested(model_config_partial_fields, attribute='app_model_config'),
-    'created_at': TimestampField
+    'model_config': fields.Nested(model_config_partial_fields, attribute='app_model_config', allow_null=True),
+    'created_at': TimestampField,
+    'tags': fields.List(fields.Nested(tag_fields))
 }
+
 
 app_pagination_fields = {
     'page': fields.Integer,
@@ -106,27 +112,28 @@ site_fields = {
     'icon_background': fields.String,
     'description': fields.String,
     'default_language': fields.String,
+    'chat_color_theme': fields.String,
+    'chat_color_theme_inverted': fields.Boolean,
     'customize_domain': fields.String,
     'copyright': fields.String,
     'privacy_policy': fields.String,
+    'custom_disclaimer': fields.String,
     'customize_token_strategy': fields.String,
     'prompt_public': fields.Boolean,
     'app_base_url': fields.String,
+    'show_workflow_steps': fields.Boolean,
 }
 
 app_detail_fields_with_site = {
     'id': fields.String,
     'name': fields.String,
-    'mode': fields.String,
+    'description': fields.String,
+    'mode': fields.String(attribute='mode_compatible_with_agent'),
     'icon': fields.String,
     'icon_background': fields.String,
     'enable_site': fields.Boolean,
     'enable_api': fields.Boolean,
-    'api_rpm': fields.Integer,
-    'api_rph': fields.Integer,
-    'is_agent': fields.Boolean,
-    'is_demo': fields.Boolean,
-    'model_config': fields.Nested(model_config_fields, attribute='app_model_config'),
+    'model_config': fields.Nested(model_config_fields, attribute='app_model_config', allow_null=True),
     'site': fields.Nested(site_fields),
     'api_base_url': fields.String,
     'created_at': TimestampField,
@@ -145,6 +152,8 @@ app_site_fields = {
     'customize_domain': fields.String,
     'copyright': fields.String,
     'privacy_policy': fields.String,
+    'custom_disclaimer': fields.String,
     'customize_token_strategy': fields.String,
-    'prompt_public': fields.Boolean
+    'prompt_public': fields.Boolean,
+    'show_workflow_steps': fields.Boolean,
 }

@@ -1,5 +1,7 @@
 /* eslint-disable import/no-mutable-exports */
+import { InputVarType } from '@/app/components/workflow/types'
 import { AgentStrategy } from '@/types/app'
+import { PromptRole } from '@/models/debug'
 
 export let apiPrefix = ''
 export let publicApiPrefix = ''
@@ -13,7 +15,7 @@ else if (
   globalThis.document?.body?.getAttribute('data-api-prefix')
   && globalThis.document?.body?.getAttribute('data-pubic-api-prefix')
 ) {
-  // Not bulild can not get env from process.env.NEXT_PUBLIC_ in browser https://nextjs.org/docs/basic-features/environment-variables#exposing-environment-variables-to-the-browser
+  // Not build can not get env from process.env.NEXT_PUBLIC_ in browser https://nextjs.org/docs/basic-features/environment-variables#exposing-environment-variables-to-the-browser
   apiPrefix = globalThis.document.body.getAttribute('data-api-prefix') as string
   publicApiPrefix = globalThis.document.body.getAttribute('data-pubic-api-prefix') as string
 }
@@ -30,6 +32,8 @@ export const PUBLIC_API_PREFIX: string = publicApiPrefix
 
 const EDITION = process.env.NEXT_PUBLIC_EDITION || globalThis.document?.body?.getAttribute('data-public-edition') || 'SELF_HOSTED'
 export const IS_CE_EDITION = EDITION === 'SELF_HOSTED'
+
+export const SUPPORT_MAIL_LOGIN = !!(process.env.NEXT_PUBLIC_SUPPORT_MAIL_LOGIN || globalThis.document?.body?.getAttribute('data-public-support-mail-login'))
 
 export const TONE_LIST = [
   {
@@ -69,7 +73,12 @@ export const TONE_LIST = [
 ]
 
 export const DEFAULT_CHAT_PROMPT_CONFIG = {
-  prompt: [],
+  prompt: [
+    {
+      role: PromptRole.system,
+      text: '',
+    },
+  ],
 }
 
 export const DEFAULT_COMPLETION_PROMPT_CONFIG = {
@@ -93,7 +102,7 @@ export const DEFAULT_PARAGRAPH_VALUE_MAX_LEN = 1000
 
 export const zhRegex = /^[\u4E00-\u9FA5]$/m
 export const emojiRegex = /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/m
-export const emailRegex = /^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$/m
+export const emailRegex = /^[\w.!#$%&'*+\-/=?^{|}~]+@([\w-]+\.)+[\w-]{2,}$/m
 const MAX_ZN_VAR_NAME_LENGHT = 8
 const MAX_EN_VAR_VALUE_LENGHT = 30
 export const getMaxVarNameLength = (value: string) => {
@@ -115,13 +124,22 @@ export const VAR_ITEM_TEMPLATE = {
   required: true,
 }
 
+export const VAR_ITEM_TEMPLATE_IN_WORKFLOW = {
+  variable: '',
+  label: '',
+  type: InputVarType.textInput,
+  max_length: DEFAULT_VALUE_MAX_LEN,
+  required: true,
+  options: [],
+}
+
 export const appDefaultIconBackground = '#D5F5F6'
 
 export const NEED_REFRESH_APP_LIST_KEY = 'needRefreshAppList'
 
 export const DATASET_DEFAULT = {
-  top_k: 2,
-  score_threshold: 0.5,
+  top_k: 4,
+  score_threshold: 0.8,
 }
 
 export const APP_PAGE_LIMIT = 10
@@ -225,3 +243,7 @@ Question: {{query}}
 Thought: {{agent_scratchpad}}
   `,
 }
+
+export const VAR_REGEX = /\{\{(#[a-zA-Z0-9_-]{1,50}(\.[a-zA-Z_][a-zA-Z0-9_]{0,29}){1,10}#)\}\}/gi
+
+export const TEXT_GENERATION_TIMEOUT_MS = 60000

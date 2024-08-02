@@ -6,12 +6,12 @@ import os
 import time
 from typing import Optional
 
-from flask import current_app
-
+from configs import dify_config
 from extensions.ext_storage import storage
 
 IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg']
 IMAGE_EXTENSIONS.extend([ext.upper() for ext in IMAGE_EXTENSIONS])
+
 
 class UploadFileParser:
     @classmethod
@@ -22,8 +22,8 @@ class UploadFileParser:
         if upload_file.extension not in IMAGE_EXTENSIONS:
             return None
 
-        if current_app.config['MULTIMODAL_SEND_IMAGE_FORMAT'] == 'url' or force_url:
-            return cls.get_signed_temp_image_url(upload_file)
+        if dify_config.MULTIMODAL_SEND_IMAGE_FORMAT == 'url' or force_url:
+            return cls.get_signed_temp_image_url(upload_file.id)
         else:
             # get image file base64
             try:
@@ -36,20 +36,20 @@ class UploadFileParser:
             return f'data:{upload_file.mime_type};base64,{encoded_string}'
 
     @classmethod
-    def get_signed_temp_image_url(cls, upload_file) -> str:
+    def get_signed_temp_image_url(cls, upload_file_id) -> str:
         """
         get signed url from upload file
 
         :param upload_file: UploadFile object
         :return:
         """
-        base_url = current_app.config.get('FILES_URL')
-        image_preview_url = f'{base_url}/files/{upload_file.id}/image-preview'
+        base_url = dify_config.FILES_URL
+        image_preview_url = f'{base_url}/files/{upload_file_id}/image-preview'
 
         timestamp = str(int(time.time()))
         nonce = os.urandom(16).hex()
-        data_to_sign = f"image-preview|{upload_file.id}|{timestamp}|{nonce}"
-        secret_key = current_app.config['SECRET_KEY'].encode()
+        data_to_sign = f"image-preview|{upload_file_id}|{timestamp}|{nonce}"
+        secret_key = dify_config.SECRET_KEY.encode()
         sign = hmac.new(secret_key, data_to_sign.encode(), hashlib.sha256).digest()
         encoded_sign = base64.urlsafe_b64encode(sign).decode()
 
@@ -67,7 +67,7 @@ class UploadFileParser:
         :return:
         """
         data_to_sign = f"image-preview|{upload_file_id}|{timestamp}|{nonce}"
-        secret_key = current_app.config['SECRET_KEY'].encode()
+        secret_key = dify_config.SECRET_KEY.encode()
         recalculated_sign = hmac.new(secret_key, data_to_sign.encode(), hashlib.sha256).digest()
         recalculated_encoded_sign = base64.urlsafe_b64encode(recalculated_sign).decode()
 
@@ -76,4 +76,4 @@ class UploadFileParser:
             return False
 
         current_time = int(time.time())
-        return current_time - int(timestamp) <= 300  # expired after 5 minutes
+        return current_time - int(timestamp) <= dify_config.FILES_ACCESS_TIMEOUT

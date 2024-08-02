@@ -5,121 +5,105 @@ import { useParams, usePathname } from 'next/navigation'
 import s from './style.module.css'
 import Tooltip from '@/app/components/base/tooltip'
 import { randomString } from '@/utils'
-import { textToAudio } from '@/service/share'
+import Loading from '@/app/components/base/loading'
+import { AudioPlayerManager } from '@/app/components/base/audio-btn/audio.player.manager'
 
 type AudioBtnProps = {
-  value: string
+  id?: string
   voice?: string
+  value?: string
   className?: string
   isAudition?: boolean
+  noCache?: boolean
 }
 
+type AudioState = 'initial' | 'loading' | 'playing' | 'paused' | 'ended'
+
 const AudioBtn = ({
-  value,
+  id,
   voice,
+  value,
   className,
   isAudition,
 }: AudioBtnProps) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isPause, setPause] = useState(false)
-  const [hasEnded, setHasEnded] = useState(false)
+  const [audioState, setAudioState] = useState<AudioState>('initial')
+
   const selector = useRef(`play-tooltip-${randomString(4)}`)
   const params = useParams()
   const pathname = usePathname()
-  const removeCodeBlocks = (inputText: any) => {
-    const codeBlockRegex = /```[\s\S]*?```/g
-    if (inputText)
-      return inputText.replace(codeBlockRegex, '')
-    return ''
-  }
-
-  const playAudio = async () => {
-    const formData = new FormData()
-    if (value !== '') {
-      formData.append('text', removeCodeBlocks(value))
-      formData.append('voice', removeCodeBlocks(voice))
-
-      let url = ''
-      let isPublic = false
-
-      if (params.token) {
-        url = '/text-to-audio'
-        isPublic = true
-      }
-      else if (params.appId) {
-        if (pathname.search('explore/installed') > -1)
-          url = `/installed-apps/${params.appId}/text-to-audio`
-        else
-          url = `/apps/${params.appId}/text-to-audio`
-      }
-
-      try {
-        const audioResponse = await textToAudio(url, isPublic, formData)
-        const blob_bytes = Buffer.from(audioResponse.data, 'latin1')
-        const blob = new Blob([blob_bytes], { type: 'audio/wav' })
-        const audioUrl = URL.createObjectURL(blob)
-        const audio = new Audio(audioUrl)
-        audioRef.current = audio
-        audio.play().then(() => {}).catch(() => {
-          setIsPlaying(false)
-          URL.revokeObjectURL(audioUrl)
-        })
-        audio.onended = () => {
-          setHasEnded(true)
-          setIsPlaying(false)
-        }
-      }
-      catch (error) {
-        setIsPlaying(false)
-        console.error('Error playing audio:', error)
-      }
+  const audio_finished_call = (event: string): any => {
+    switch (event) {
+      case 'ended':
+        setAudioState('ended')
+        break
+      case 'paused':
+        setAudioState('ended')
+        break
+      case 'loaded':
+        setAudioState('loading')
+        break
+      case 'play':
+        setAudioState('playing')
+        break
+      case 'error':
+        setAudioState('ended')
+        break
     }
   }
-  const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        if (!hasEnded) {
-          setPause(false)
-          audioRef.current.play()
-        }
-        if (!isPause) {
-          setPause(true)
-          audioRef.current.pause()
-        }
-      }
-      else if (!isPlaying) {
-        if (isPause) {
-          setPause(false)
-          audioRef.current.play()
-        }
-        else {
-          setHasEnded(false)
-          playAudio().then()
-        }
-      }
-      setIsPlaying(prevIsPlaying => !prevIsPlaying)
+  let url = ''
+  let isPublic = false
+
+  if (params.token) {
+    url = '/text-to-audio'
+    isPublic = true
+  }
+  else if (params.appId) {
+    if (pathname.search('explore/installed') > -1)
+      url = `/installed-apps/${params.appId}/text-to-audio`
+    else
+      url = `/apps/${params.appId}/text-to-audio`
+  }
+  const handleToggle = async () => {
+    if (audioState === 'playing' || audioState === 'loading') {
+      setTimeout(() => setAudioState('paused'), 1)
+      AudioPlayerManager.getInstance().getAudioPlayer(url, isPublic, id, value, voice, audio_finished_call).pauseAudio()
     }
     else {
-      setIsPlaying(true)
-      if (!isPlaying)
-        playAudio().then()
+      setTimeout(() => setAudioState('loading'), 1)
+      AudioPlayerManager.getInstance().getAudioPlayer(url, isPublic, id, value, voice, audio_finished_call).playAudio()
     }
   }
 
+  const tooltipContent = {
+    initial: t('appApi.play'),
+    ended: t('appApi.play'),
+    paused: t('appApi.pause'),
+    playing: t('appApi.playing'),
+    loading: t('appApi.loading'),
+  }[audioState]
+
   return (
-    <div className={`${(isPlaying && !hasEnded) ? 'mr-1' : className}`}>
+    <div className={`${(audioState === 'loading' || audioState === 'playing') ? 'mr-1' : className}`}>
       <Tooltip
         selector={selector.current}
-        content={(!isPause ? ((isPlaying && !hasEnded) ? t('appApi.playing') : t('appApi.play')) : t('appApi.pause')) as string}
+        content={tooltipContent}
         className='z-10'
       >
-        <div
-          className={`box-border p-0.5 flex items-center justify-center cursor-pointer ${isAudition || 'rounded-md bg-white'}`}
-          style={{ boxShadow: !isAudition ? '0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06)' : '' }}
-          onClick={togglePlayPause}>
-          <div className={`w-6 h-6 rounded-md ${!isAudition ? 'hover:bg-gray-200' : 'hover:bg-gray-50'} ${(isPlaying && !hasEnded) ? s.pauseIcon : s.playIcon}`}></div>
-        </div>
+        <button
+          disabled={audioState === 'loading'}
+          className={`box-border p-0.5 flex items-center justify-center cursor-pointer ${isAudition || '!p-0 rounded-md bg-white'}`}
+          onClick={handleToggle}
+        >
+          {audioState === 'loading'
+            ? (
+              <div className='w-6 h-6 rounded-md flex items-center justify-center p-2'>
+                <Loading />
+              </div>
+            )
+            : (
+              <div className={`w-6 h-6 rounded-md ${!isAudition ? 'w-4 h-4 hover:bg-gray-50' : 'hover:bg-gray-50'} ${(audioState === 'playing') ? s.pauseIcon : s.playIcon}`}></div>
+            )}
+        </button>
       </Tooltip>
     </div>
   )

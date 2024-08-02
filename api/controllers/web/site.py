@@ -1,11 +1,12 @@
 
-from flask import current_app
 from flask_restful import fields, marshal_with
 from werkzeug.exceptions import Forbidden
 
+from configs import dify_config
 from controllers.web import api
 from controllers.web.wraps import WebApiResource
 from extensions.ext_database import db
+from models.account import TenantStatus
 from models.model import Site
 from services.feature_service import FeatureService
 
@@ -25,13 +26,17 @@ class AppSiteApi(WebApiResource):
 
     site_fields = {
         'title': fields.String,
+        'chat_color_theme': fields.String,
+        'chat_color_theme_inverted': fields.Boolean,
         'icon': fields.String,
         'icon_background': fields.String,
         'description': fields.String,
         'copyright': fields.String,
         'privacy_policy': fields.String,
+        'custom_disclaimer': fields.String,
         'default_language': fields.String,
-        'prompt_public': fields.Boolean
+        'prompt_public': fields.Boolean,
+        'show_workflow_steps': fields.Boolean,
     }
 
     app_fields = {
@@ -52,6 +57,9 @@ class AppSiteApi(WebApiResource):
         site = db.session.query(Site).filter(Site.app_id == app_model.id).first()
 
         if not site:
+            raise Forbidden()
+
+        if app_model.tenant.status == TenantStatus.ARCHIVE:
             raise Forbidden()
 
         can_replace_logo = FeatureService.get_features(app_model.tenant_id).can_replace_logo
@@ -76,14 +84,10 @@ class AppSiteInfo:
         self.can_replace_logo = can_replace_logo
 
         if can_replace_logo:
-            base_url = current_app.config.get('FILES_URL')
+            base_url = dify_config.FILES_URL
             remove_webapp_brand = tenant.custom_config_dict.get('remove_webapp_brand', False)
             replace_webapp_logo = f'{base_url}/files/workspaces/{tenant.id}/webapp-logo' if tenant.custom_config_dict.get('replace_webapp_logo') else None
             self.custom_config = {
                 'remove_webapp_brand': remove_webapp_brand,
                 'replace_webapp_logo': replace_webapp_logo,
             }
-
-        if app.enable_site and site.prompt_public:
-            app_model_config = app.app_model_config
-            self.model_config = app_model_config

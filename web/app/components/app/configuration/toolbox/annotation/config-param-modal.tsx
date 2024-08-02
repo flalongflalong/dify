@@ -11,6 +11,7 @@ import type { AnnotationReplyConfig } from '@/models/debug'
 import { ANNOTATION_DEFAULT } from '@/config'
 import ModelSelector from '@/app/components/header/account-setting/model-provider-page/model-selector'
 import { useModelListAndDefaultModelAndCurrentProviderAndModel } from '@/app/components/header/account-setting/model-provider-page/hooks'
+import { ModelTypeEnum } from '@/app/components/header/account-setting/model-provider-page/declarations'
 
 type Props = {
   appId: string
@@ -36,7 +37,7 @@ const ConfigParamModal: FC<Props> = ({
     modelList: embeddingsModelList,
     defaultModel: embeddingsDefaultModel,
     currentModel: isEmbeddingsDefaultModelValid,
-  } = useModelListAndDefaultModelAndCurrentProviderAndModel(2)
+  } = useModelListAndDefaultModelAndCurrentProviderAndModel(ModelTypeEnum.textEmbedding)
   const [annotationConfig, setAnnotationConfig] = useState(oldAnnotationConfig)
 
   const [isLoading, setLoading] = useState(false)
@@ -77,7 +78,6 @@ const ConfigParamModal: FC<Props> = ({
       isShow={isShow}
       onClose={onHide}
       className='!p-8 !pb-6 !mt-14 !max-w-none !w-[640px]'
-      wrapperClassName='!z-50'
     >
       <div className='mb-2 text-xl font-semibold text-[#1D2939]'>
         {t(`appAnnotation.initSetup.${isInit ? 'title' : 'configTitle'}`)}
@@ -123,11 +123,10 @@ const ConfigParamModal: FC<Props> = ({
       </div>
 
       <div className='mt-6 flex gap-2 justify-end'>
-        <Button className='!text-sm' onClick={onHide}>{t('common.operation.cancel')}</Button>
+        <Button onClick={onHide}>{t('common.operation.cancel')}</Button>
         <Button
-          type='primary'
+          variant='primary'
           onClick={handleSave}
-          className='flex items-center border-[0.5px] !text-sm'
           loading={isLoading}
         >
           <div></div>

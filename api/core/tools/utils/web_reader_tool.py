@@ -1,5 +1,6 @@
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import site
@@ -7,12 +8,14 @@ import subprocess
 import tempfile
 import unicodedata
 from contextlib import contextmanager
+from urllib.parse import unquote
 
-import requests
+import chardet
+import cloudscraper
 from bs4 import BeautifulSoup, CData, Comment, NavigableString
-from newspaper import Article
 from regex import regex
 
+from core.helper import ssrf_proxy
 from core.rag.extractor import extract_processor
 from core.rag.extractor.extract_processor import ExtractProcessor
 
@@ -39,27 +42,55 @@ def get_url(url: str, user_agent: str = None) -> str:
     }
     if user_agent:
         headers["User-Agent"] = user_agent
-    
+
+    main_content_type = None
     supported_content_types = extract_processor.SUPPORT_URL_CONTENT_TYPES + ["text/html"]
+    response = ssrf_proxy.head(url, headers=headers, follow_redirects=True, timeout=(5, 10))
 
-    head_response = requests.head(url, headers=headers, allow_redirects=True, timeout=(5, 10))
+    if response.status_code == 200:
+        # check content-type
+        content_type = response.headers.get('Content-Type')
+        if content_type:
+            main_content_type = response.headers.get('Content-Type').split(';')[0].strip()
+        else:
+            content_disposition = response.headers.get('Content-Disposition', '')
+            filename_match = re.search(r'filename="([^"]+)"', content_disposition)
+            if filename_match:
+                filename = unquote(filename_match.group(1))
+                extension = re.search(r'\.(\w+)$', filename)
+                if extension:
+                    main_content_type = mimetypes.guess_type(filename)[0]
 
-    if head_response.status_code != 200:
-        return "URL returned status code {}.".format(head_response.status_code)
+        if main_content_type not in supported_content_types:
+            return "Unsupported content-type [{}] of URL.".format(main_content_type)
 
-    # check content-type
-    main_content_type = head_response.headers.get('Content-Type').split(';')[0].strip()
-    if main_content_type not in supported_content_types:
-        return "Unsupported content-type [{}] of URL.".format(main_content_type)
+        if main_content_type in extract_processor.SUPPORT_URL_CONTENT_TYPES:
+            return ExtractProcessor.load_from_url(url, return_text=True)
 
-    if main_content_type in extract_processor.SUPPORT_URL_CONTENT_TYPES:
-        return ExtractProcessor.load_from_url(url, return_text=True)
+        response = ssrf_proxy.get(url, headers=headers, follow_redirects=True, timeout=(120, 300))
+    elif response.status_code == 403:
+        scraper = cloudscraper.create_scraper()
+        scraper.perform_request = ssrf_proxy.make_request
+        response = scraper.get(url, headers=headers, follow_redirects=True, timeout=(120, 300))
 
-    response = requests.get(url, headers=headers, allow_redirects=True, timeout=(5, 30))
-    a = extract_using_readabilipy(response.text)
+    if response.status_code != 200:
+        return "URL returned status code {}.".format(response.status_code)
+
+    # Detect encoding using chardet
+    detected_encoding = chardet.detect(response.content)
+    encoding = detected_encoding['encoding']
+    if encoding:
+        try:
+            content = response.content.decode(encoding)
+        except (UnicodeDecodeError, TypeError):
+            content = response.text
+    else:
+        content = response.text
+
+    a = extract_using_readabilipy(content)
 
     if not a['plain_text'] or not a['plain_text'].strip():
-        return get_url_from_newspaper3k(url)
+        return ''
 
     res = FULL_TEMPLATE.format(
         title=a['title'],
@@ -67,23 +98,6 @@ def get_url(url: str, user_agent: str = None) -> str:
         publish_date=a['date'],
         top_image="",
         text=a['plain_text'] if a['plain_text'] else "",
-    )
-
-    return res
-
-
-def get_url_from_newspaper3k(url: str) -> str:
-
-    a = Article(url)
-    a.download()
-    a.parse()
-
-    res = FULL_TEMPLATE.format(
-        title=a.title,
-        authors=a.authors,
-        publish_date=a.publish_date,
-        top_image=a.top_image,
-        text=a.text,
     )
 
     return res
@@ -119,17 +133,17 @@ def extract_using_readabilipy(html):
     }
     # Populate article fields from readability fields where present
     if input_json:
-        if "title" in input_json and input_json["title"]:
+        if input_json.get("title"):
             article_json["title"] = input_json["title"]
-        if "byline" in input_json and input_json["byline"]:
+        if input_json.get("byline"):
             article_json["byline"] = input_json["byline"]
-        if "date" in input_json and input_json["date"]:
+        if input_json.get("date"):
             article_json["date"] = input_json["date"]
-        if "content" in input_json and input_json["content"]:
+        if input_json.get("content"):
             article_json["content"] = input_json["content"]
             article_json["plain_content"] = plain_content(article_json["content"], False, False)
             article_json["plain_text"] = extract_text_blocks_as_plain_text(article_json["plain_content"])
-        if "textContent" in input_json and input_json["textContent"]:
+        if input_json.get("textContent"):
             article_json["plain_text"] = input_json["textContent"]
             article_json["plain_text"] = re.sub(r'\n\s*\n', '\n', article_json["plain_text"])
 
@@ -270,7 +284,7 @@ def strip_control_characters(text):
     #   [Cn]: Other, Not Assigned
     #   [Co]: Other, Private Use
     #   [Cs]: Other, Surrogate
-    control_chars = set(['Cc', 'Cf', 'Cn', 'Co', 'Cs'])
+    control_chars = {'Cc', 'Cf', 'Cn', 'Co', 'Cs'}
     retained_chars = ['\t', '\n', '\r', '\f']
 
     # Remove non-printing control characters

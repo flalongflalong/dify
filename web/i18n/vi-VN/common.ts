@@ -34,6 +34,8 @@ const translation = {
     log: 'Nhật ký',
     learnMore: 'Tìm hiểu thêm',
     params: 'Tham số',
+    duplicate: 'Nhân bản',
+    rename: 'Đổi tên',
   },
   placeholder: {
     input: 'Vui lòng nhập',
@@ -54,6 +56,8 @@ const translation = {
       ptBR: 'Tiếng Bồ Đào Nha',
       ruRU: 'Tiếng Nga',
       ukUA: 'Tiếng Ukraina',
+      viVN: 'Tiếng Việt',
+      plPL: 'Tiếng Ba Lan',
     },
   },
   unit: {
@@ -114,10 +118,11 @@ const translation = {
   },
   userProfile: {
     settings: 'Cài đặt',
+    emailSupport: 'Hỗ trợ qua Email',
     workspace: 'Không gian làm việc',
     createWorkspace: 'Tạo Không gian làm việc',
     helpCenter: 'Trung tâm trợ giúp',
-    roadmapAndFeedback: 'Lộ trình & Phản hồi',
+    roadmapAndFeedback: 'Phản hồi',
     community: 'Cộng đồng',
     about: 'Về chúng tôi',
     logout: 'Đăng xuất',
@@ -151,6 +156,9 @@ const translation = {
     langGeniusAccountTip: 'Tài khoản Dify của bạn và dữ liệu người dùng liên quan.',
     editName: 'Chỉnh sửa Tên',
     showAppLength: 'Hiển thị {{length}} ứng dụng',
+    delete: 'Xóa tài khoản',
+    deleteTip: 'Xóa tài khoản của bạn sẽ xóa vĩnh viễn tất cả dữ liệu của bạn và không thể khôi phục được.',
+    deleteConfirmTip: 'Để xác nhận, vui lòng gửi thông tin sau từ email đã đăng ký của bạn tới ',
   },
   members: {
     team: 'Nhóm',
@@ -164,6 +172,8 @@ const translation = {
     adminTip: 'Có thể xây dựng ứng dụng và quản lý cài đặt nhóm',
     normal: 'Bình thường',
     normalTip: 'Chỉ có thể sử dụng ứng dụng, không thể xây dựng ứng dụng',
+    editor: 'Biên tập viên',
+    editorTip: 'Chỉ có thể xây dựng ứng dụng, không thể quản lý cài đặt nhóm',
     inviteTeamMember: 'Mời thành viên nhóm',
     inviteTeamMemberTip: 'Sau khi đăng nhập, họ có thể truy cập trực tiếp vào dữ liệu nhóm của bạn.',
     email: 'Email',
@@ -180,6 +190,7 @@ const translation = {
     removeFromTeamTip: 'Sẽ xóa quyền truy cập nhóm',
     setAdmin: 'Đặt làm quản trị viên',
     setMember: 'Đặt thành viên bình thường',
+    setEditor: 'Đặt làm biên tập viên',
     disinvite: 'Hủy lời mời',
     deleteMember: 'Xóa thành viên',
     you: '(Bạn)',
@@ -400,6 +411,7 @@ const translation = {
     promptEng: 'Orchestrate',
     apiAccess: 'Truy cập API',
     logAndAnn: 'Nhật ký & Thông báo',
+    logs: 'Nhật ký',
   },
   environment: {
     testing: 'TESTING',
@@ -477,6 +489,10 @@ const translation = {
         title: 'Biến & Công cụ Bên ngoài',
         desc: 'Chèn Biến & Công cụ Bên ngoài',
       },
+      outputToolDisabledItem: {
+        title: 'Công cụ Bên ngoài',
+        desc: 'Công cụ Bên ngoài không thể chèn vào đây',
+      },
       modal: {
         add: 'Biến mới',
         addTool: 'Công cụ mới',
@@ -499,6 +515,21 @@ const translation = {
     pasteImageLinkInputPlaceholder: 'Dán liên kết ảnh ở đây',
     pasteImageLinkInvalid: 'Liên kết ảnh không hợp lệ',
     imageUpload: 'Tải ảnh lên',
+  },
+  tag: {
+    placeholder: 'Tất cả các thẻ',
+    addNew: 'Thêm thẻ mới',
+    noTag: 'Không có thẻ',
+    noTagYet: 'Chưa có thẻ',
+    addTag: 'thêm thẻ',
+    editTag: 'Chỉnh sửa thẻ',
+    manageTags: 'Quản lý thẻ',
+    selectorPlaceholder: 'Nhập để tìm kiếm hoặc tạo',
+    create: 'Tạo',
+    delete: 'Xóa thẻ',
+    deleteTip: 'Thẻ đang được sử dụng, xóa nó đi?',
+    created: 'Thẻ được tạo thành công',
+    failed: 'Tạo thẻ không thành công',
   },
 }
 

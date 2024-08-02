@@ -1,20 +1,20 @@
 import threading
-from typing import Optional
 
 from flask import Flask, current_app
-from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from core.callback_handler.index_tool_callback_handler import DatasetIndexToolCallbackHandler
 from core.model_manager import ModelManager
 from core.model_runtime.entities.model_entities import ModelType
 from core.rag.datasource.retrieval_service import RetrievalService
-from core.rerank.rerank import RerankRunner
+from core.rag.rerank.rerank_model import RerankModelRunner
+from core.rag.retrieval.retrival_methods import RetrievalMethod
+from core.tools.tool.dataset_retriever.dataset_retriever_base_tool import DatasetRetrieverBaseTool
 from extensions.ext_database import db
 from models.dataset import Dataset, Document, DocumentSegment
 
 default_retrieval_model = {
-    'search_method': 'semantic_search',
+    'search_method': RetrievalMethod.SEMANTIC_SEARCH.value,
     'reranking_enable': False,
     'reranking_model': {
         'reranking_provider_name': '',
@@ -29,25 +29,20 @@ class DatasetMultiRetrieverToolInput(BaseModel):
     query: str = Field(..., description="dataset multi retriever and rerank")
 
 
-class DatasetMultiRetrieverTool(BaseTool):
+class DatasetMultiRetrieverTool(DatasetRetrieverBaseTool):
     """Tool for querying multi dataset."""
-    name: str = "dataset-"
+    name: str = "dataset_"
     args_schema: type[BaseModel] = DatasetMultiRetrieverToolInput
     description: str = "dataset multi retriever and rerank. "
-    tenant_id: str
     dataset_ids: list[str]
-    top_k: int = 2
-    score_threshold: Optional[float] = None
     reranking_provider_name: str
     reranking_model_name: str
-    return_resource: bool
-    retriever_from: str
-    hit_callbacks: list[DatasetIndexToolCallbackHandler] = []
+
 
     @classmethod
     def from_dataset(cls, dataset_ids: list[str], tenant_id: str, **kwargs):
         return cls(
-            name=f'dataset-{tenant_id}',
+            name=f"dataset_{tenant_id.replace('-', '_')}",
             tenant_id=tenant_id,
             dataset_ids=dataset_ids,
             **kwargs
@@ -77,7 +72,7 @@ class DatasetMultiRetrieverTool(BaseTool):
             model=self.reranking_model_name
         )
 
-        rerank_runner = RerankRunner(rerank_model_instance)
+        rerank_runner = RerankModelRunner(rerank_model_instance)
         all_documents = rerank_runner.run(query, all_documents, self.score_threshold, self.top_k)
 
         for hit_callback in self.hit_callbacks:
@@ -85,7 +80,7 @@ class DatasetMultiRetrieverTool(BaseTool):
 
         document_score_list = {}
         for item in all_documents:
-            if 'score' in item.metadata and item.metadata['score']:
+            if item.metadata.get('score'):
                 document_score_list[item.metadata['doc_id']] = item.metadata['score']
 
         document_context_list = []
@@ -105,9 +100,9 @@ class DatasetMultiRetrieverTool(BaseTool):
                                                                                        float('inf')))
             for segment in sorted_segments:
                 if segment.answer:
-                    document_context_list.append(f'question:{segment.content} answer:{segment.answer}')
+                    document_context_list.append(f'question:{segment.get_sign_content()} answer:{segment.answer}')
                 else:
-                    document_context_list.append(segment.content)
+                    document_context_list.append(segment.get_sign_content())
             if self.return_resource:
                 context_list = []
                 resource_number = 1
@@ -149,9 +144,6 @@ class DatasetMultiRetrieverTool(BaseTool):
 
             return str("\n".join(document_context_list))
 
-    async def _arun(self, tool_input: str) -> str:
-        raise NotImplementedError()
-
     def _retriever(self, flask_app: Flask, dataset_id: str, query: str, all_documents: list,
                    hit_callbacks: list[DatasetIndexToolCallbackHandler]):
         with flask_app.app_context():
@@ -188,7 +180,8 @@ class DatasetMultiRetrieverTool(BaseTool):
                                                           score_threshold=retrieval_model['score_threshold']
                                                           if retrieval_model['score_threshold_enabled'] else None,
                                                           reranking_model=retrieval_model['reranking_model']
-                                                          if retrieval_model['reranking_enable'] else None
+                                                          if retrieval_model['reranking_enable'] else None,
+                                                          weights=retrieval_model.get('weights', None),
                                                           )
 
                     all_documents.extend(documents)

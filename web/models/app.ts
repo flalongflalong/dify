@@ -1,6 +1,5 @@
+import type { LangFuseConfig, LangSmithConfig, TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
 import type { App, AppTemplate, SiteConfig } from '@/types/app'
-
-export type AppMode = 'chat' | 'completion'
 
 /* export type App = {
   id: string
@@ -81,6 +80,10 @@ export type AppDailyConversationsResponse = {
   data: Array<{ date: string; conversation_count: number }>
 }
 
+export type WorkflowDailyConversationsResponse = {
+  data: Array<{ date: string; runs: number }>
+}
+
 export type AppStatisticsResponse = {
   data: Array<{ date: string }>
 }
@@ -127,3 +130,13 @@ export type AppVoicesListResponse = [{
   name: string
   value: string
 }]
+
+export type TracingStatus = {
+  enabled: boolean
+  tracing_provider: TracingProvider | null
+}
+
+export type TracingConfig = {
+  tracing_provider: TracingProvider
+  tracing_config: LangSmithConfig | LangFuseConfig
+}

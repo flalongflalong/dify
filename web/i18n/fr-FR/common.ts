@@ -10,7 +10,7 @@ const translation = {
     create: 'Créer',
     confirm: 'Confirmer',
     cancel: 'Annuler',
-    clear: 'Clair',
+    clear: 'Effacer',
     save: 'Enregistrer',
     edit: 'Modifier',
     add: 'Ajouter',
@@ -34,6 +34,8 @@ const translation = {
     log: 'Journal',
     learnMore: 'En savoir plus',
     params: 'Paramètres',
+    duplicate: 'Dupliquer',
+    rename: 'Renommer',
   },
   placeholder: {
     input: 'Veuillez entrer',
@@ -42,6 +44,7 @@ const translation = {
   voice: {
     language: {
       zhHans: 'Chinois',
+      zhHant: 'Chinois (traditionnel)',
       enUS: 'Anglais',
       deDE: 'Allemand',
       frFR: 'Français',
@@ -54,6 +57,8 @@ const translation = {
       ptBR: 'Portugais',
       ruRU: 'Russe',
       ukUA: 'Ukrainien',
+      viVN: 'Vietnamien',
+      plPL: 'Polonais',
     },
   },
   unit: {
@@ -114,10 +119,11 @@ const translation = {
   },
   userProfile: {
     settings: 'Paramètres',
+    emailSupport: 'Support par courriel',
     workspace: 'Espace de travail',
     createWorkspace: 'Créer un Espace de Travail',
     helpCenter: 'Aide',
-    roadmapAndFeedback: 'Feuille de route & Retour d\'information',
+    roadmapAndFeedback: 'Retour d\'information',
     community: 'Communauté',
     about: 'À propos',
     logout: 'Se déconnecter',
@@ -151,6 +157,9 @@ const translation = {
     langGeniusAccountTip: 'Votre compte Dify et les données utilisateur associées.',
     editName: 'Modifier le nom',
     showAppLength: 'Afficher {{length}} applications',
+    delete: 'Supprimer le compte',
+    deleteTip: 'La suppression de votre compte effacera définitivement toutes vos données et elles ne pourront pas être récupérées.',
+    deleteConfirmTip: 'Pour confirmer, veuillez envoyer ce qui suit depuis votre adresse e-mail enregistrée à ',
   },
   members: {
     team: 'Équipe',
@@ -164,6 +173,8 @@ const translation = {
     adminTip: 'Peut construire des applications & gérer les paramètres de l\'équipe',
     normal: 'Normal',
     normalTip: 'Peut seulement utiliser des applications, ne peut pas construire des applications',
+    editor: 'Éditeur',
+    editorTip: 'Peut construire des applications, mais ne peut pas gérer les paramètres de l\'équipe',
     inviteTeamMember: 'Ajouter un membre de l\'équipe',
     inviteTeamMemberTip: 'Ils peuvent accéder directement à vos données d\'équipe après s\'être connectés.',
     email: 'Courrier électronique',
@@ -180,6 +191,7 @@ const translation = {
     removeFromTeamTip: 'Supprimera l\'accès de l\'équipe',
     setAdmin: 'Définir comme administrateur',
     setMember: 'Définir en tant que membre ordinaire',
+    setEditor: 'Définir en tant qu\'éditeur',
     disinvite: 'Annuler l\'invitation',
     deleteMember: 'Supprimer Membre',
     you: '(Vous)',
@@ -400,6 +412,7 @@ const translation = {
     promptEng: 'Orchestrer',
     apiAccess: 'Accès API',
     logAndAnn: 'Journaux & Annonces.',
+    logs: 'Journaux',
   },
   environment: {
     testing: 'TESTER',
@@ -477,6 +490,10 @@ const translation = {
         title: 'Variables & Outils Externes',
         desc: 'Insérer des Variables & Outils Externes',
       },
+      outputToolDisabledItem: {
+        title: 'Variables',
+        desc: 'Insérer Variables',
+      },
       modal: {
         add: 'Nouvelle variable',
         addTool: 'Nouvel outil',
@@ -499,6 +516,21 @@ const translation = {
     pasteImageLinkInputPlaceholder: 'Collez le lien de l\'image ici',
     pasteImageLinkInvalid: 'Lien d\'image invalide',
     imageUpload: 'Téléchargement d\'image',
+  },
+  tag: {
+    placeholder: 'Toutes les balises',
+    addNew: 'Ajouter une nouvelle balise',
+    noTag: 'Aucune balise',
+    noTagYet: 'Aucune balise pour l\'instant',
+    addTag: 'ajouter une balise',
+    editTag: 'Modifier les balises',
+    manageTags: 'Gérer les balises',
+    selectorPlaceholder: 'Type de recherche ou de création',
+    create: 'Créer',
+    delete: 'Supprimer la balise',
+    deleteTip: 'Le tag est utilisé, le supprimer ?',
+    created: 'Tag créé avec succès',
+    failed: 'La création de la balise a échoué',
   },
 }
 

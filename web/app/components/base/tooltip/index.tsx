@@ -1,8 +1,8 @@
 'use client'
-import classNames from 'classnames'
 import type { FC } from 'react'
 import React from 'react'
 import { Tooltip as ReactTooltip } from 'react-tooltip' // fixed version to 5.8.3 https://github.com/ReactTooltip/react-tooltip/issues/972
+import classNames from '@/utils/classnames'
 import 'react-tooltip/dist/react-tooltip.css'
 
 type TooltipProps = {
@@ -14,6 +14,7 @@ type TooltipProps = {
   position?: 'top' | 'right' | 'bottom' | 'left'
   clickable?: boolean
   children: React.ReactNode
+  noArrow?: boolean
 }
 
 const Tooltip: FC<TooltipProps> = ({
@@ -25,6 +26,7 @@ const Tooltip: FC<TooltipProps> = ({
   htmlContent,
   className,
   clickable,
+  noArrow,
 }) => {
   return (
     <div className='tooltip-container'>
@@ -39,6 +41,7 @@ const Tooltip: FC<TooltipProps> = ({
         place={position}
         clickable={clickable}
         isOpen={disabled ? false : undefined}
+        noArrow={noArrow}
       >
         {htmlContent && htmlContent}
       </ReactTooltip>

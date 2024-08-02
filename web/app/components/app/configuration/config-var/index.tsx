@@ -5,6 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { useBoolean } from 'ahooks'
 import type { Timeout } from 'ahooks/lib/useRequest/src/types'
 import { useContext } from 'use-context-selector'
+import produce from 'immer'
+import {
+  RiDeleteBinLine,
+  RiQuestionLine,
+} from '@remixicon/react'
 import Panel from '../base/feature-panel'
 import EditModal from './config-modal'
 import IconTypeIcon from './input-type-icon'
@@ -18,13 +23,15 @@ import { DEFAULT_VALUE_MAX_LEN, getMaxVarNameLength } from '@/config'
 import { checkKeys, getNewVar } from '@/utils/var'
 import Switch from '@/app/components/base/switch'
 import Toast from '@/app/components/base/toast'
-import { HelpCircle, Settings01, Trash03 } from '@/app/components/base/icons/src/vender/line/general'
+import { Settings01 } from '@/app/components/base/icons/src/vender/line/general'
 import ConfirmModal from '@/app/components/base/confirm/common'
 import ConfigContext from '@/context/debug-configuration'
 import { AppType } from '@/types/app'
 import type { ExternalDataTool } from '@/models/common'
 import { useModalContext } from '@/context/modal-context'
 import { useEventEmitterContextContext } from '@/context/event-emitter'
+import type { InputVar } from '@/app/components/workflow/types'
+import { InputVarType } from '@/app/components/workflow/types'
 
 export const ADD_EXTERNAL_DATA_TOOL = 'ADD_EXTERNAL_DATA_TOOL'
 
@@ -51,7 +58,6 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
   const {
     mode,
     dataSets,
-    externalDataToolsConfig,
   } = useContext(ConfigContext)
   const { eventEmitter } = useEventEmitterContextContext()
 
@@ -69,22 +75,35 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
     })
     onPromptVariablesChange?.(newPromptVariables)
   }
+  const [currIndex, setCurrIndex] = useState<number>(-1)
+  const currItem = currIndex !== -1 ? promptVariables[currIndex] : null
+  const currItemToEdit: InputVar | null = (() => {
+    if (!currItem)
+      return null
 
-  const batchUpdatePromptVariable = (key: string, updateKeys: string[], newValues: any[], isParagraph?: boolean) => {
-    const newPromptVariables = promptVariables.map((item) => {
-      if (item.key === key) {
-        const newItem: any = { ...item }
-        updateKeys.forEach((updateKey, i) => {
-          newItem[updateKey] = newValues[i]
-        })
-        if (isParagraph) {
-          delete newItem.max_length
-          delete newItem.options
-        }
-        return newItem
+    return {
+      ...currItem,
+      label: currItem.name,
+      variable: currItem.key,
+      type: currItem.type === 'string' ? InputVarType.textInput : currItem.type,
+    } as InputVar
+  })()
+  const updatePromptVariableItem = (payload: InputVar) => {
+    console.log(payload)
+    const newPromptVariables = produce(promptVariables, (draft) => {
+      const { variable, label, type, ...rest } = payload
+      draft[currIndex] = {
+        ...rest,
+        type: type === InputVarType.textInput ? 'string' : type,
+        key: variable,
+        name: label as string,
       }
 
-      return item
+      if (payload.type === InputVarType.textInput)
+        draft[currIndex].max_length = draft[currIndex].max_length || DEFAULT_VALUE_MAX_LEN
+
+      if (payload.type !== InputVarType.select)
+        delete draft[currIndex].options
     })
 
     onPromptVariablesChange?.(newPromptVariables)
@@ -111,7 +130,7 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
     })
 
     conflictTimer = setTimeout(() => {
-      const isKeyExists = promptVariables.some(item => item.key.trim() === newKey.trim())
+      const isKeyExists = promptVariables.some(item => item.key?.trim() === newKey.trim())
       if (isKeyExists) {
         Toast.notify({
           type: 'error',
@@ -240,13 +259,13 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
     didRemoveVar(index)
   }
 
-  const [currKey, setCurrKey] = useState<string | null>(null)
-  const currItem = currKey ? promptVariables.find(item => item.key === currKey) : null
+  // const [currKey, setCurrKey] = useState<string | null>(null)
   const [isShowEditModal, { setTrue: showEditModal, setFalse: hideEditModal }] = useBoolean(false)
 
   const handleConfig = ({ key, type, index, name, config, icon, icon_background }: ExternalDataToolParams) => {
-    setCurrKey(key)
-    if (type !== 'string' && type !== 'paragraph' && type !== 'select') {
+    // setCurrKey(key)
+    setCurrIndex(index)
+    if (type !== 'string' && type !== 'paragraph' && type !== 'select' && type !== 'number') {
       handleOpenExternalDataToolModal({ key, type, index, name, config, icon, icon_background }, promptVariables)
       return
     }
@@ -266,7 +285,7 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
             <Tooltip htmlContent={<div className='w-[180px]'>
               {t('appDebug.variableTip')}
             </div>} selector='config-var-tooltip'>
-              <HelpCircle className='w-[14px] h-[14px] text-gray-400' />
+              <RiQuestionLine className='w-[14px] h-[14px] text-gray-400' />
             </Tooltip>
           )}
         </div>
@@ -343,7 +362,7 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
                             <Settings01 className='w-4 h-4 text-gray-500' />
                           </div>
                           <div className=' p-1 rounded-md hover:bg-black/5 w-6 h-6 cursor-pointer' onClick={() => handleRemoveVar(index)} >
-                            <Trash03 className='w-4 h-4 text-gray-500' />
+                            <RiDeleteBinLine className='w-4 h-4 text-gray-500' />
                           </div>
                         </div>
                       </td>
@@ -358,17 +377,14 @@ const ConfigVar: FC<IConfigVarProps> = ({ promptVariables, readonly, onPromptVar
 
       {isShowEditModal && (
         <EditModal
-          payload={currItem as PromptVariable}
+          payload={currItemToEdit!}
           isShow={isShowEditModal}
           onClose={hideEditModal}
-          onConfirm={({ type, value }) => {
-            if (type === 'string')
-              batchUpdatePromptVariable(currKey as string, ['type', 'max_length'], [type, value || DEFAULT_VALUE_MAX_LEN])
-            else
-              batchUpdatePromptVariable(currKey as string, ['type', 'options'], [type, value || []], type === 'paragraph')
-
+          onConfirm={(item) => {
+            updatePromptVariableItem(item)
             hideEditModal()
           }}
+          varKeys={promptVariables.map(v => v.key)}
         />
       )}
 

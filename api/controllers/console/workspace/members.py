@@ -1,32 +1,17 @@
-from flask import current_app
 from flask_login import current_user
-from flask_restful import Resource, abort, fields, marshal_with, reqparse
+from flask_restful import Resource, abort, marshal_with, reqparse
 
 import services
+from configs import dify_config
 from controllers.console import api
 from controllers.console.setup import setup_required
 from controllers.console.wraps import account_initialization_required, cloud_edition_billing_resource_check
 from extensions.ext_database import db
-from libs.helper import TimestampField
+from fields.member_fields import account_with_role_list_fields
 from libs.login import login_required
-from models.account import Account
+from models.account import Account, TenantAccountRole
 from services.account_service import RegisterService, TenantService
 from services.errors.account import AccountAlreadyInTenantError
-
-account_fields = {
-    'id': fields.String,
-    'name': fields.String,
-    'avatar': fields.String,
-    'email': fields.String,
-    'last_login_at': TimestampField,
-    'created_at': TimestampField,
-    'role': fields.String,
-    'status': fields.String,
-}
-
-account_list_fields = {
-    'accounts': fields.List(fields.Nested(account_fields))
-}
 
 
 class MemberListApi(Resource):
@@ -35,7 +20,7 @@ class MemberListApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    @marshal_with(account_list_fields)
+    @marshal_with(account_with_role_list_fields)
     def get(self):
         members = TenantService.get_tenant_members(current_user.current_tenant)
         return {'result': 'success', 'accounts': members}, 200
@@ -58,12 +43,12 @@ class MemberInviteEmailApi(Resource):
         invitee_emails = args['emails']
         invitee_role = args['role']
         interface_language = args['language']
-        if invitee_role not in ['admin', 'normal']:
+        if not TenantAccountRole.is_non_owner_role(invitee_role):
             return {'code': 'invalid-role', 'message': 'Invalid role'}, 400
 
         inviter = current_user
         invitation_results = []
-        console_web_url = current_app.config.get("CONSOLE_WEB_URL")
+        console_web_url = dify_config.CONSOLE_WEB_URL
         for invitee_email in invitee_emails:
             try:
                 token = RegisterService.invite_new_member(inviter.current_tenant, invitee_email, interface_language, role=invitee_role, inviter=inviter)
@@ -129,10 +114,10 @@ class MemberUpdateRoleApi(Resource):
         args = parser.parse_args()
         new_role = args['role']
 
-        if new_role not in ['admin', 'normal', 'owner']:
+        if not TenantAccountRole.is_valid_role(new_role):
             return {'code': 'invalid-role', 'message': 'Invalid role'}, 400
 
-        member = Account.query.get(str(member_id))
+        member = db.session.get(Account, str(member_id))
         if not member:
             abort(404)
 
@@ -146,7 +131,20 @@ class MemberUpdateRoleApi(Resource):
         return {'result': 'success'}
 
 
+class DatasetOperatorMemberListApi(Resource):
+    """List all members of current tenant."""
+
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @marshal_with(account_with_role_list_fields)
+    def get(self):
+        members = TenantService.get_dataset_operator_members(current_user.current_tenant)
+        return {'result': 'success', 'accounts': members}, 200
+
+
 api.add_resource(MemberListApi, '/workspaces/current/members')
 api.add_resource(MemberInviteEmailApi, '/workspaces/current/members/invite-email')
 api.add_resource(MemberCancelInviteApi, '/workspaces/current/members/<uuid:member_id>')
 api.add_resource(MemberUpdateRoleApi, '/workspaces/current/members/<uuid:member_id>/update-role')
+api.add_resource(DatasetOperatorMemberListApi, '/workspaces/current/dataset-operators')

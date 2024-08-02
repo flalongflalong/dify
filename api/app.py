@@ -1,28 +1,32 @@
 import os
 
-from werkzeug.exceptions import Unauthorized
-
-if not os.environ.get("DEBUG") or os.environ.get("DEBUG").lower() != 'true':
+if os.environ.get("DEBUG", "false").lower() != 'true':
     from gevent import monkey
-    monkey.patch_all()
-    # if os.environ.get("VECTOR_STORE") == 'milvus':
-    import grpc.experimental.gevent
-    grpc.experimental.gevent.init_gevent()
 
-    import langchain
-    langchain.verbose = True
+    monkey.patch_all()
+
+    import grpc.experimental.gevent
+
+    grpc.experimental.gevent.init_gevent()
 
 import json
 import logging
+import sys
 import threading
 import time
 import warnings
+from logging.handlers import RotatingFileHandler
 
 from flask import Flask, Response, request
 from flask_cors import CORS
+from werkzeug.exceptions import Unauthorized
 
+import contexts
 from commands import register_commands
-from config import CloudEditionConfig, Config
+from configs import dify_config
+
+# DO NOT REMOVE BELOW
+from events import event_handlers
 from extensions import (
     ext_celery,
     ext_code_based_extension,
@@ -39,11 +43,11 @@ from extensions import (
 from extensions.ext_database import db
 from extensions.ext_login import login_manager
 from libs.passport import PassportService
+
+# TODO: Find a way to avoid importing models here
+from models import account, dataset, model, source, task, tool, tools, web
 from services.account_service import AccountService
 
-# DO NOT REMOVE BELOW
-from events import event_handlers
-from models import account, dataset, model, source, task, tool, tools, web
 # DO NOT REMOVE ABOVE
 
 
@@ -51,7 +55,7 @@ warnings.simplefilter("ignore", ResourceWarning)
 
 # fix windows platform
 if os.name == "nt":
-    os.system('tzutil /s "UTC"')    
+    os.system('tzutil /s "UTC"')
 else:
     os.environ['TZ'] = 'UTC'
     time.tzset()
@@ -60,6 +64,7 @@ else:
 class DifyApp(Flask):
     pass
 
+
 # -------------
 # Configuration
 # -------------
@@ -67,26 +72,69 @@ class DifyApp(Flask):
 
 config_type = os.getenv('EDITION', default='SELF_HOSTED')  # ce edition first
 
+
 # ----------------------------
 # Application Factory Function
 # ----------------------------
 
+def create_flask_app_with_configs() -> Flask:
+    """
+    create a raw flask app
+    with configs loaded from .env file
+    """
+    dify_app = DifyApp(__name__)
+    dify_app.config.from_mapping(dify_config.model_dump())
 
-def create_app(test_config=None) -> Flask:
-    app = DifyApp(__name__)
+    # populate configs into system environment variables
+    for key, value in dify_app.config.items():
+        if isinstance(value, str):
+            os.environ[key] = value
+        elif isinstance(value, int | float | bool):
+            os.environ[key] = str(value)
+        elif value is None:
+            os.environ[key] = ''
 
-    if test_config:
-        app.config.from_object(test_config)
-    else:
-        if config_type == "CLOUD":
-            app.config.from_object(CloudEditionConfig())
-        else:
-            app.config.from_object(Config())
+    return dify_app
+
+
+def create_app() -> Flask:
+    app = create_flask_app_with_configs()
 
     app.secret_key = app.config['SECRET_KEY']
 
-    logging.basicConfig(level=app.config.get('LOG_LEVEL', 'INFO'))
+    log_handlers = None
+    log_file = app.config.get('LOG_FILE')
+    if log_file:
+        log_dir = os.path.dirname(log_file)
+        os.makedirs(log_dir, exist_ok=True)
+        log_handlers = [
+            RotatingFileHandler(
+                filename=log_file,
+                maxBytes=1024 * 1024 * 1024,
+                backupCount=5
+            ),
+            logging.StreamHandler(sys.stdout)
+        ]
 
+    logging.basicConfig(
+        level=app.config.get('LOG_LEVEL'),
+        format=app.config.get('LOG_FORMAT'),
+        datefmt=app.config.get('LOG_DATEFORMAT'),
+        handlers=log_handlers,
+        force=True
+    )
+    log_tz = app.config.get('LOG_TZ')
+    if log_tz:
+        from datetime import datetime
+
+        import pytz
+        timezone = pytz.timezone(log_tz)
+
+        def time_converter(seconds):
+            return datetime.utcfromtimestamp(seconds).astimezone(timezone).timetuple()
+
+        for handler in logging.root.handlers:
+            handler.formatter.converter = time_converter
     initialize_extensions(app)
     register_blueprints(app)
     register_commands(app)
@@ -114,27 +162,29 @@ def initialize_extensions(app):
 @login_manager.request_loader
 def load_user_from_request(request_from_flask_login):
     """Load user based on the request."""
-    if request.blueprint == 'console':
-        # Check if the user_id contains a dot, indicating the old format
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header:
-            auth_token = request.args.get('_token')
-            if not auth_token:
-                raise Unauthorized('Invalid Authorization token.')
-        else:
-            if ' ' not in auth_header:
-                raise Unauthorized('Invalid Authorization header format. Expected \'Bearer <api-key>\' format.')
-            auth_scheme, auth_token = auth_header.split(None, 1)
-            auth_scheme = auth_scheme.lower()
-            if auth_scheme != 'bearer':
-                raise Unauthorized('Invalid Authorization header format. Expected \'Bearer <api-key>\' format.')
-
-        decoded = PassportService().verify(auth_token)
-        user_id = decoded.get('user_id')
-
-        return AccountService.load_user(user_id)
-    else:
+    if request.blueprint not in ['console', 'inner_api']:
         return None
+    # Check if the user_id contains a dot, indicating the old format
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header:
+        auth_token = request.args.get('_token')
+        if not auth_token:
+            raise Unauthorized('Invalid Authorization token.')
+    else:
+        if ' ' not in auth_header:
+            raise Unauthorized('Invalid Authorization header format. Expected \'Bearer <api-key>\' format.')
+        auth_scheme, auth_token = auth_header.split(None, 1)
+        auth_scheme = auth_scheme.lower()
+        if auth_scheme != 'bearer':
+            raise Unauthorized('Invalid Authorization header format. Expected \'Bearer <api-key>\' format.')
+
+    decoded = PassportService().verify(auth_token)
+    user_id = decoded.get('user_id')
+
+    account = AccountService.load_logged_in_account(account_id=user_id, token=auth_token)
+    if account:
+        contexts.tenant_id.set(account.current_tenant_id)
+    return account
 
 
 @login_manager.unauthorized_handler
@@ -150,6 +200,7 @@ def unauthorized_handler():
 def register_blueprints(app):
     from controllers.console import bp as console_app_bp
     from controllers.files import bp as files_bp
+    from controllers.inner_api import bp as inner_api_bp
     from controllers.service_api import bp as service_api_bp
     from controllers.web import bp as web_bp
 
@@ -187,13 +238,14 @@ def register_blueprints(app):
          )
     app.register_blueprint(files_bp)
 
+    app.register_blueprint(inner_api_bp)
+
 
 # create app
 app = create_app()
 celery = app.extensions["celery"]
 
-
-if app.config['TESTING']:
+if app.config.get('TESTING'):
     print("App is running in TESTING mode")
 
 
@@ -209,6 +261,7 @@ def after_request(response):
 @app.route('/health')
 def health():
     return Response(json.dumps({
+        'pid': os.getpid(),
         'status': 'ok',
         'version': app.config['CURRENT_VERSION']
     }), status=200, content_type="application/json")
@@ -232,6 +285,7 @@ def threads():
         })
 
     return {
+        'pid': os.getpid(),
         'thread_num': num_threads,
         'threads': thread_list
     }
@@ -241,6 +295,7 @@ def threads():
 def pool_stat():
     engine = db.engine
     return {
+        'pid': os.getpid(),
         'pool_size': engine.pool.size(),
         'checked_in_connections': engine.pool.checkedin(),
         'checked_out_connections': engine.pool.checkedout(),

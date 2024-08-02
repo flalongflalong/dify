@@ -85,3 +85,33 @@ class TooManyFilesError(BaseHTTPException):
     error_code = 'too_many_files'
     description = "Only one file is allowed."
     code = 400
+
+
+class DraftWorkflowNotExist(BaseHTTPException):
+    error_code = 'draft_workflow_not_exist'
+    description = "Draft workflow need to be initialized."
+    code = 400
+
+
+class DraftWorkflowNotSync(BaseHTTPException):
+    error_code = 'draft_workflow_not_sync'
+    description = "Workflow graph might have been modified, please refresh and resubmit."
+    code = 400
+
+
+class TracingConfigNotExist(BaseHTTPException):
+    error_code = 'trace_config_not_exist'
+    description = "Trace config not exist."
+    code = 400
+
+
+class TracingConfigIsExist(BaseHTTPException):
+    error_code = 'trace_config_is_exist'
+    description = "Trace config is exist."
+    code = 400
+
+
+class TracingConfigCheckError(BaseHTTPException):
+    error_code = 'trace_config_check_error'
+    description = "Invalid Credentials."
+    code = 400

@@ -7,12 +7,13 @@ from flask_login import current_user
 from flask_restful import Resource, reqparse
 
 from controllers.console import api
-from controllers.console.app import _get_app
+from controllers.console.app.wraps import get_app_model
 from controllers.console.setup import setup_required
 from controllers.console.wraps import account_initialization_required
 from extensions.ext_database import db
 from libs.helper import datetime_string
 from libs.login import login_required
+from models.model import AppMode
 
 
 class DailyConversationStatistic(Resource):
@@ -20,10 +21,9 @@ class DailyConversationStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id)
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -81,10 +81,9 @@ class DailyTerminalsStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id)
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -141,10 +140,9 @@ class DailyTokenCostStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id)
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -205,10 +203,9 @@ class AverageSessionInteractionStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model(mode=[AppMode.CHAT, AppMode.AGENT_CHAT, AppMode.ADVANCED_CHAT])
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id, 'chat')
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -271,10 +268,9 @@ class UserSatisfactionRateStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id)
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -285,7 +281,7 @@ class UserSatisfactionRateStatistic(Resource):
                         SELECT date(DATE_TRUNC('day', m.created_at AT TIME ZONE 'UTC' AT TIME ZONE :tz )) AS date, 
                             COUNT(m.id) as message_count, COUNT(mf.id) as feedback_count 
                             FROM messages m
-                            LEFT JOIN message_feedbacks mf on mf.message_id=m.id
+                            LEFT JOIN message_feedbacks mf on mf.message_id=m.id and mf.rating='like'
                             WHERE m.app_id = :app_id 
                         '''
         arg_dict = {'tz': account.timezone, 'app_id': app_model.id}
@@ -334,10 +330,9 @@ class AverageResponseTimeStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model(mode=AppMode.COMPLETION)
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id, 'completion')
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')
@@ -396,10 +391,9 @@ class TokensPerSecondStatistic(Resource):
     @setup_required
     @login_required
     @account_initialization_required
-    def get(self, app_id):
+    @get_app_model
+    def get(self, app_model):
         account = current_user
-        app_id = str(app_id)
-        app_model = _get_app(app_id)
 
         parser = reqparse.RequestParser()
         parser.add_argument('start', type=datetime_string('%Y-%m-%d %H:%M'), location='args')

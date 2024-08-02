@@ -2,41 +2,58 @@
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import cn from 'classnames'
 import { addDefaultValue, toolCredentialToFormSchemas } from '../../utils/to-form-schema'
 import type { Collection } from '../../types'
+import cn from '@/utils/classnames'
 import Drawer from '@/app/components/base/drawer-plus'
 import Button from '@/app/components/base/button'
-import { fetchBuiltInToolCredentialSchema } from '@/service/tools'
+import Toast from '@/app/components/base/toast'
+import { fetchBuiltInToolCredential, fetchBuiltInToolCredentialSchema } from '@/service/tools'
 import Loading from '@/app/components/base/loading'
 import Form from '@/app/components/header/account-setting/model-provider-page/model-modal/Form'
 import { LinkExternal02 } from '@/app/components/base/icons/src/vender/line/general'
+import { useLanguage } from '@/app/components/header/account-setting/model-provider-page/hooks'
 
 type Props = {
   collection: Collection
   onCancel: () => void
   onSaved: (value: Record<string, any>) => void
-  onRemove: () => void
+  isHideRemoveBtn?: boolean
+  onRemove?: () => void
 }
 
 const ConfigCredential: FC<Props> = ({
   collection,
   onCancel,
   onSaved,
-  onRemove,
+  isHideRemoveBtn,
+  onRemove = () => { },
 }) => {
   const { t } = useTranslation()
+  const language = useLanguage()
   const [credentialSchema, setCredentialSchema] = useState<any>(null)
-  const { team_credentials: credentialValue, name: collectionName } = collection
-  const [tempCredential, setTempCredential] = React.useState<any>(credentialValue)
+  const { name: collectionName } = collection
+  const [tempCredential, setTempCredential] = React.useState<any>({})
   useEffect(() => {
-    fetchBuiltInToolCredentialSchema(collectionName).then((res) => {
+    fetchBuiltInToolCredentialSchema(collectionName).then(async (res) => {
       const toolCredentialSchemas = toolCredentialToFormSchemas(res)
+      const credentialValue = await fetchBuiltInToolCredential(collectionName)
+      setTempCredential(credentialValue)
       const defaultCredentials = addDefaultValue(credentialValue, toolCredentialSchemas)
       setCredentialSchema(toolCredentialSchemas)
       setTempCredential(defaultCredentials)
     })
   }, [])
+
+  const handleSave = () => {
+    for (const field of credentialSchema) {
+      if (field.required && !tempCredential[field.name]) {
+        Toast.notify({ type: 'error', message: t('common.errorMsg.fieldRequired', { field: field.label[language] || field.label.en_US }) })
+        return
+      }
+    }
+    onSaved(tempCredential)
+  }
 
   return (
     <Drawer
@@ -44,8 +61,8 @@ const ConfigCredential: FC<Props> = ({
       onHide={onCancel}
       title={t('tools.auth.setupModalTitle') as string}
       titleDescription={t('tools.auth.setupModalTitleDescription') as string}
-      panelClassName='mt-2 !w-[480px]'
-      maxWidthClassName='!max-w-[480px]'
+      panelClassName='mt-2 !w-[405px]'
+      maxWidthClassName='!max-w-[405px]'
       height='calc(100vh - 16px)'
       contentClassName='!bg-gray-100'
       headerClassName='!border-b-black/5'
@@ -77,15 +94,15 @@ const ConfigCredential: FC<Props> = ({
                     </a>)
                     : null}
                 />
-                <div className={cn(collection.is_team_authorization ? 'justify-between' : 'justify-end', 'mt-2 flex ')} >
+                <div className={cn((collection.is_team_authorization && !isHideRemoveBtn) ? 'justify-between' : 'justify-end', 'mt-2 flex ')} >
                   {
-                    collection.is_team_authorization && (
-                      <Button className='flex items-center h-8 !px-3 !text-[13px] font-medium !text-gray-700' onClick={onRemove}>{t('common.operation.remove')}</Button>
+                    (collection.is_team_authorization && !isHideRemoveBtn) && (
+                      <Button onClick={onRemove}>{t('common.operation.remove')}</Button>
                     )
                   }
                   < div className='flex space-x-2'>
-                    <Button className='flex items-center h-8 !px-3 !text-[13px] font-medium !text-gray-700' onClick={onCancel}>{t('common.operation.cancel')}</Button>
-                    <Button className='flex items-center h-8 !px-3 !text-[13px] font-medium' type='primary' onClick={() => onSaved(tempCredential)}>{t('common.operation.save')}</Button>
+                    <Button onClick={onCancel}>{t('common.operation.cancel')}</Button>
+                    <Button variant='primary' onClick={handleSave}>{t('common.operation.save')}</Button>
                   </div>
                 </div>
               </>

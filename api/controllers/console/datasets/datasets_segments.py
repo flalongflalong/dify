@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from flask import request
@@ -75,7 +75,7 @@ class DatasetDocumentSegmentListApi(Resource):
         )
 
         if last_id is not None:
-            last_segment = DocumentSegment.query.get(str(last_id))
+            last_segment = db.session.get(DocumentSegment, str(last_id))
             if last_segment:
                 query = query.filter(
                     DocumentSegment.position > last_segment.position)
@@ -126,8 +126,8 @@ class DatasetDocumentSegmentApi(Resource):
             raise NotFound('Dataset not found.')
         # check user's model setting
         DatasetService.check_dataset_model_setting(dataset)
-        # The role of the current user in the ta table must be admin or owner
-        if not current_user.is_admin_or_owner:
+        # The role of the current user in the ta table must be admin, owner, or editor
+        if not current_user.is_editor:
             raise Forbidden()
 
         try:
@@ -192,7 +192,7 @@ class DatasetDocumentSegmentApi(Resource):
                 raise InvalidActionError("Segment is already disabled.")
 
             segment.enabled = False
-            segment.disabled_at = datetime.utcnow()
+            segment.disabled_at = datetime.now(timezone.utc).replace(tzinfo=None)
             segment.disabled_by = current_user.id
             db.session.commit()
 
@@ -302,8 +302,8 @@ class DatasetDocumentSegmentUpdateApi(Resource):
         ).first()
         if not segment:
             raise NotFound('Segment not found.')
-        # The role of the current user in the ta table must be admin or owner
-        if not current_user.is_admin_or_owner:
+        # The role of the current user in the ta table must be admin, owner, or editor
+        if not current_user.is_editor:
             raise Forbidden()
         try:
             DatasetService.check_dataset_permission(dataset, current_user)

@@ -19,7 +19,7 @@ from controllers.web.error import (
 from controllers.web.wraps import WebApiResource
 from core.errors.error import ModelCurrentlyNotSupportError, ProviderTokenNotInitError, QuotaExceededError
 from core.model_runtime.errors.invoke import InvokeError
-from models.model import App, AppModelConfig
+from models.model import App, AppMode
 from services.audio_service import AudioService
 from services.errors.audio import (
     AudioTooLargeServiceError,
@@ -31,16 +31,11 @@ from services.errors.audio import (
 
 class AudioApi(WebApiResource):
     def post(self, app_model: App, end_user):
-        app_model_config: AppModelConfig = app_model.app_model_config
-
-        if not app_model_config.speech_to_text_dict['enabled']:
-            raise AppUnavailableError()
-
         file = request.files['file']
 
         try:
             response = AudioService.transcript_asr(
-                tenant_id=app_model.tenant_id,
+                app_model=app_model,
                 file=file,
                 end_user=end_user
             )
@@ -74,21 +69,38 @@ class AudioApi(WebApiResource):
 
 class TextApi(WebApiResource):
     def post(self, app_model: App, end_user):
-        app_model_config: AppModelConfig = app_model.app_model_config
-
-        if not app_model_config.text_to_speech_dict['enabled']:
-            raise AppUnavailableError()
-
+        from flask_restful import reqparse
         try:
+            parser = reqparse.RequestParser()
+            parser.add_argument('message_id', type=str, required=False, location='json')
+            parser.add_argument('voice', type=str, location='json')
+            parser.add_argument('text', type=str, location='json')
+            parser.add_argument('streaming', type=bool, location='json')
+            args = parser.parse_args()
+
+            message_id = args.get('message_id', None)
+            text = args.get('text', None)
+            if (app_model.mode in [AppMode.ADVANCED_CHAT.value, AppMode.WORKFLOW.value]
+                    and app_model.workflow
+                    and app_model.workflow.features_dict):
+                text_to_speech = app_model.workflow.features_dict.get('text_to_speech')
+                voice = args.get('voice') if args.get('voice') else text_to_speech.get('voice')
+            else:
+                try:
+                    voice = args.get('voice') if args.get(
+                        'voice') else app_model.app_model_config.text_to_speech_dict.get('voice')
+                except Exception:
+                    voice = None
+
             response = AudioService.transcript_tts(
-                tenant_id=app_model.tenant_id,
-                text=request.form['text'],
+                app_model=app_model,
+                message_id=message_id,
                 end_user=end_user.external_user_id,
-                voice=request.form['voice'] if request.form['voice'] else app_model.app_model_config.text_to_speech_dict.get('voice'),
-                streaming=False
+                voice=voice,
+                text=text
             )
 
-            return {'data': response.data.decode('latin1')}
+            return response
         except services.errors.app_model_config.AppModelConfigBrokenError:
             logging.exception("App model config broken.")
             raise AppUnavailableError()

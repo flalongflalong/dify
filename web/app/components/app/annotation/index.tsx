@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pagination } from 'react-headless-pagination'
 import { ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
-import cn from 'classnames'
 import Toast from '../../base/toast'
 import Filter from './filter'
 import type { QueryParam } from './filter'
@@ -14,6 +13,7 @@ import HeaderOpts from './header-opts'
 import s from './style.module.css'
 import { AnnotationEnableStatus, type AnnotationItem, type AnnotationItemBasic, JobStatus } from './type'
 import ViewAnnotationModal from './view-annotation-modal'
+import cn from '@/utils/classnames'
 import Switch from '@/app/components/base/switch'
 import { addAnnotation, delAnnotation, fetchAnnotationConfig as doFetchAnnotationConfig, editAnnotation, fetchAnnotationList, queryAnnotationJobStatus, updateAnnotationScore, updateAnnotationStatus } from '@/service/annotation'
 import Loading from '@/app/components/base/loading'
@@ -24,14 +24,14 @@ import { sleep } from '@/utils'
 import { useProviderContext } from '@/context/provider-context'
 import AnnotationFullModal from '@/app/components/billing/annotation-full/modal'
 import { Settings04 } from '@/app/components/base/icons/src/vender/line/general'
-import { fetchAppDetail } from '@/service/apps'
+import type { App } from '@/types/app'
 
 type Props = {
-  appId: string
+  appDetail: App
 }
 
 const Annotation: FC<Props> = ({
-  appId,
+  appDetail,
 }) => {
   const { t } = useTranslation()
   const [isShowEdit, setIsShowEdit] = React.useState(false)
@@ -39,16 +39,15 @@ const Annotation: FC<Props> = ({
   const [isChatApp, setIsChatApp] = useState(false)
 
   const fetchAnnotationConfig = async () => {
-    const res = await doFetchAnnotationConfig(appId)
+    const res = await doFetchAnnotationConfig(appDetail.id)
     setAnnotationConfig(res as AnnotationReplyConfig)
+    return (res as AnnotationReplyConfig).id
   }
   useEffect(() => {
-    fetchAppDetail({ url: '/apps', id: appId }).then(async (res: any) => {
-      const isChatApp = res.mode === 'chat'
-      setIsChatApp(isChatApp)
-      if (isChatApp)
-        fetchAnnotationConfig()
-    })
+    const isChatApp = appDetail.mode !== 'completion'
+    setIsChatApp(isChatApp)
+    if (isChatApp)
+      fetchAnnotationConfig()
   }, [])
   const [controlRefreshSwitch, setControlRefreshSwitch] = useState(Date.now())
   const { plan, enableBilling } = useProviderContext()
@@ -57,7 +56,7 @@ const Annotation: FC<Props> = ({
   const ensureJobCompleted = async (jobId: string, status: AnnotationEnableStatus) => {
     let isCompleted = false
     while (!isCompleted) {
-      const res: any = await queryAnnotationJobStatus(appId, status, jobId)
+      const res: any = await queryAnnotationJobStatus(appDetail.id, status, jobId)
       isCompleted = res.job_status === JobStatus.completed
       if (isCompleted)
         break
@@ -81,7 +80,7 @@ const Annotation: FC<Props> = ({
   const fetchList = async (page = 1) => {
     setIsLoading(true)
     try {
-      const { data, total }: any = await fetchAnnotationList(appId, {
+      const { data, total }: any = await fetchAnnotationList(appDetail.id, {
         ...query,
         page,
       })
@@ -104,7 +103,7 @@ const Annotation: FC<Props> = ({
   }, [queryParams])
 
   const handleAdd = async (payload: AnnotationItemBasic) => {
-    await addAnnotation(appId, {
+    await addAnnotation(appDetail.id, {
       ...payload,
     })
     Toast.notify({
@@ -116,7 +115,7 @@ const Annotation: FC<Props> = ({
   }
 
   const handleRemove = async (id: string) => {
-    await delAnnotation(appId, id)
+    await delAnnotation(appDetail.id, id)
     Toast.notify({
       message: t('common.api.actionSuccess'),
       type: 'success',
@@ -137,7 +136,7 @@ const Annotation: FC<Props> = ({
   }
 
   const handleSave = async (question: string, answer: string) => {
-    await editAnnotation(appId, (currItem as AnnotationItem).id, {
+    await editAnnotation(appDetail.id, (currItem as AnnotationItem).id, {
       question,
       answer,
     })
@@ -153,7 +152,7 @@ const Annotation: FC<Props> = ({
     <div className='flex flex-col h-full'>
       <p className='flex text-sm font-normal text-gray-500'>{t('appLog.description')}</p>
       <div className='grow flex flex-col py-4 '>
-        <Filter appId={appId} queryParams={queryParams} setQueryParams={setQueryParams}>
+        <Filter appId={appDetail.id} queryParams={queryParams} setQueryParams={setQueryParams}>
           <div className='flex items-center space-x-2'>
             {isChatApp && (
               <>
@@ -173,7 +172,7 @@ const Annotation: FC<Props> = ({
                         setIsShowEdit(true)
                       }
                       else {
-                        const { job_id: jobId }: any = await updateAnnotationStatus(appId, AnnotationEnableStatus.disable, annotationConfig?.embedding_model, annotationConfig?.score_threshold)
+                        const { job_id: jobId }: any = await updateAnnotationStatus(appDetail.id, AnnotationEnableStatus.disable, annotationConfig?.embedding_model, annotationConfig?.score_threshold)
                         await ensureJobCompleted(jobId, AnnotationEnableStatus.disable)
                         await fetchAnnotationConfig()
                         Toast.notify({
@@ -205,7 +204,7 @@ const Annotation: FC<Props> = ({
             )}
 
             <HeaderOpts
-              appId={appId}
+              appId={appDetail.id}
               controlUpdateList={controlUpdateList}
               onAdd={handleAdd}
               onAdded={() => {
@@ -260,7 +259,7 @@ const Annotation: FC<Props> = ({
 
         {isShowViewModal && (
           <ViewAnnotationModal
-            appId={appId}
+            appId={appDetail.id}
             isShow={isShowViewModal}
             onHide={() => setIsShowViewModal(false)}
             onRemove={async () => {
@@ -272,7 +271,7 @@ const Annotation: FC<Props> = ({
         )}
         {isShowEdit && (
           <ConfigParamModal
-            appId={appId}
+            appId={appDetail.id}
             isShow
             isInit={!annotationConfig?.enabled}
             onHide={() => {
@@ -283,12 +282,12 @@ const Annotation: FC<Props> = ({
                 embeddingModel.embedding_model_name !== annotationConfig?.embedding_model?.embedding_model_name
                 && embeddingModel.embedding_provider_name !== annotationConfig?.embedding_model?.embedding_provider_name
               ) {
-                const { job_id: jobId }: any = await updateAnnotationStatus(appId, AnnotationEnableStatus.enable, embeddingModel, score)
+                const { job_id: jobId }: any = await updateAnnotationStatus(appDetail.id, AnnotationEnableStatus.enable, embeddingModel, score)
                 await ensureJobCompleted(jobId, AnnotationEnableStatus.enable)
               }
-
+              const annotationId = await fetchAnnotationConfig()
               if (score !== annotationConfig?.score_threshold)
-                await updateAnnotationScore(appId, annotationConfig?.id || '', score)
+                await updateAnnotationScore(appDetail.id, annotationId, score)
 
               await fetchAnnotationConfig()
               Toast.notify({

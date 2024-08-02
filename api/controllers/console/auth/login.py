@@ -1,12 +1,15 @@
+from typing import cast
+
 import flask_login
-from flask import current_app, request
+from flask import request
 from flask_restful import Resource, reqparse
 
 import services
 from controllers.console import api
 from controllers.console.setup import setup_required
-from libs.helper import email
+from libs.helper import email, get_remote_ip
 from libs.password import valid_password
+from models.account import Account
 from services.account_service import AccountService, TenantService
 
 
@@ -26,15 +29,15 @@ class LoginApi(Resource):
 
         try:
             account = AccountService.authenticate(args['email'], args['password'])
-        except services.errors.account.AccountLoginError:
-            return {'code': 'unauthorized', 'message': 'Invalid email or password'}, 401
+        except services.errors.account.AccountLoginError as e:
+            return {'code': 'unauthorized', 'message': str(e)}, 401
 
-        TenantService.create_owner_tenant_if_not_exist(account)
+        # SELF_HOSTED only have one workspace
+        tenants = TenantService.get_join_tenants(account)
+        if len(tenants) == 0:
+            return {'result': 'fail', 'data': 'workspace not found, please contact system admin to invite you to join in a workspace'}
 
-        AccountService.update_last_login(account, request)
-
-        # todo: return the user info
-        token = AccountService.get_account_jwt_token(account)
+        token = AccountService.login(account, ip_address=get_remote_ip(request))
 
         return {'result': 'success', 'data': token}
 
@@ -43,6 +46,9 @@ class LogoutApi(Resource):
 
     @setup_required
     def get(self):
+        account = cast(Account, flask_login.current_user)
+        token = request.headers.get('Authorization', '').split(' ')[1]
+        AccountService.logout(account=account, token=token)
         flask_login.logout_user()
         return {'result': 'success'}
 
@@ -50,14 +56,14 @@ class LogoutApi(Resource):
 class ResetPasswordApi(Resource):
     @setup_required
     def get(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument('email', type=email, required=True, location='json')
-        args = parser.parse_args()
+        # parser = reqparse.RequestParser()
+        # parser.add_argument('email', type=email, required=True, location='json')
+        # args = parser.parse_args()
 
         # import mailchimp_transactional as MailchimpTransactional
         # from mailchimp_transactional.api_client import ApiClientError
 
-        account = {'email': args['email']}
+        # account = {'email': args['email']}
         # account = AccountService.get_by_email(args['email'])
         # if account is None:
         #     raise ValueError('Email not found')
@@ -65,28 +71,28 @@ class ResetPasswordApi(Resource):
         # AccountService.update_password(account, new_password)
 
         # todo: Send email
-        MAILCHIMP_API_KEY = current_app.config['MAILCHIMP_TRANSACTIONAL_API_KEY']
+        # MAILCHIMP_API_KEY = dify_config.MAILCHIMP_TRANSACTIONAL_API_KEY
         # mailchimp = MailchimpTransactional(MAILCHIMP_API_KEY)
 
-        message = {
-            'from_email': 'noreply@example.com',
-            'to': [{'email': account.email}],
-            'subject': 'Reset your Dify password',
-            'html': """
-                <p>Dear User,</p>
-                <p>The Dify team has generated a new password for you, details as follows:</p> 
-                <p><strong>{new_password}</strong></p>
-                <p>Please change your password to log in as soon as possible.</p>
-                <p>Regards,</p>
-                <p>The Dify Team</p> 
-            """
-        }
+        # message = {
+        #     'from_email': 'noreply@example.com',
+        #     'to': [{'email': account['email']}],
+        #     'subject': 'Reset your Dify password',
+        #     'html': """
+        #         <p>Dear User,</p>
+        #         <p>The Dify team has generated a new password for you, details as follows:</p> 
+        #         <p><strong>{new_password}</strong></p>
+        #         <p>Please change your password to log in as soon as possible.</p>
+        #         <p>Regards,</p>
+        #         <p>The Dify Team</p> 
+        #     """
+        # }
 
         # response = mailchimp.messages.send({
         #     'message': message,
         #     # required for transactional email
         #     ' settings': {
-        #         'sandbox_mode': current_app.config['MAILCHIMP_SANDBOX_MODE'],
+        #         'sandbox_mode': dify_config.MAILCHIMP_SANDBOX_MODE,
         #     },
         # })
 

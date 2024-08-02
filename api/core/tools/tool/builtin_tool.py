@@ -1,8 +1,9 @@
 
 from core.model_runtime.entities.llm_entities import LLMResult
 from core.model_runtime.entities.message_entities import PromptMessage, SystemPromptMessage, UserPromptMessage
-from core.tools.model.tool_model_manager import ToolModelManager
+from core.tools.entities.tool_entities import ToolProviderType
 from core.tools.tool.tool import Tool
+from core.tools.utils.model_invocation_utils import ModelInvocationUtils
 from core.tools.utils.web_reader_tool import get_url
 
 _SUMMARY_PROMPT = """You are a professional language researcher, you are interested in the language
@@ -32,13 +33,16 @@ class BuiltinTool(Tool):
             :return: the model result
         """
         # invoke model
-        return ToolModelManager.invoke(
+        return ModelInvocationUtils.invoke(
             user_id=user_id,
             tenant_id=self.runtime.tenant_id,
             tool_type='builtin',
             tool_name=self.identity.name,
             prompt_messages=prompt_messages,
         )
+    
+    def tool_provider_type(self) -> ToolProviderType:
+        return ToolProviderType.BUILT_IN
     
     def get_max_tokens(self) -> int:
         """
@@ -47,7 +51,7 @@ class BuiltinTool(Tool):
             :param model_config: the model config
             :return: the max tokens
         """
-        return ToolModelManager.get_max_llm_context_tokens(
+        return ModelInvocationUtils.get_max_llm_context_tokens(
             tenant_id=self.runtime.tenant_id,
         )
 
@@ -58,11 +62,11 @@ class BuiltinTool(Tool):
             :param prompt_messages: the prompt messages
             :return: the tokens
         """
-        return ToolModelManager.calculate_tokens(
+        return ModelInvocationUtils.calculate_tokens(
             tenant_id=self.runtime.tenant_id,
             prompt_messages=prompt_messages
         )
-    
+
     def summary(self, user_id: str, content: str) -> str:
         max_tokens = self.get_max_tokens()
 
