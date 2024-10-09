@@ -1,2 +1,2 @@
-# TODO: Update all string in code to use this constant
-HIDDEN_VALUE = '[__HIDDEN__]'
+HIDDEN_VALUE = "[__HIDDEN__]"
+UUID_NIL = "00000000-0000-0000-0000-000000000000"
