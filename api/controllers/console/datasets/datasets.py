@@ -24,8 +24,8 @@ from fields.app_fields import related_app_list
 from fields.dataset_fields import dataset_detail_fields, dataset_query_detail_fields
 from fields.document_fields import document_status_fields
 from libs.login import login_required
-from models.dataset import Dataset, DatasetPermissionEnum, Document, DocumentSegment
-from models.model import ApiToken, UploadFile
+from models import ApiToken, Dataset, Document, DocumentSegment, UploadFile
+from models.dataset import DatasetPermissionEnum
 from services.dataset_service import DatasetPermissionService, DatasetService, DocumentService
 
 
@@ -617,6 +617,8 @@ class DatasetRetrievalSettingApi(Resource):
                 | VectorType.CHROMA
                 | VectorType.TENCENT
                 | VectorType.PGVECTO_RS
+                | VectorType.BAIDU
+                | VectorType.VIKINGDB
             ):
                 return {"retrieval_method": [RetrievalMethod.SEMANTIC_SEARCH.value]}
             case (
@@ -628,6 +630,7 @@ class DatasetRetrievalSettingApi(Resource):
                 | VectorType.ORACLE
                 | VectorType.ELASTICSEARCH
                 | VectorType.PGVECTOR
+                | VectorType.UPSTASH
             ):
                 return {
                     "retrieval_method": [
@@ -653,6 +656,8 @@ class DatasetRetrievalSettingMockApi(Resource):
                 | VectorType.CHROMA
                 | VectorType.TENCENT
                 | VectorType.PGVECTO_RS
+                | VectorType.BAIDU
+                | VectorType.VIKINGDB
             ):
                 return {"retrieval_method": [RetrievalMethod.SEMANTIC_SEARCH.value]}
             case (
@@ -664,6 +669,7 @@ class DatasetRetrievalSettingMockApi(Resource):
                 | VectorType.ORACLE
                 | VectorType.ELASTICSEARCH
                 | VectorType.PGVECTOR
+                | VectorType.UPSTASH
             ):
                 return {
                     "retrieval_method": [
