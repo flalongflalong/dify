@@ -1,9 +1,10 @@
 import json
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Optional, Union
 
+import sqlalchemy as sa
 from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -99,14 +100,16 @@ class Workflow(db.Model):
     app_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
     type: Mapped[str] = mapped_column(db.String(255), nullable=False)
     version: Mapped[str] = mapped_column(db.String(255), nullable=False)
-    graph: Mapped[str] = mapped_column(db.Text)
-    _features: Mapped[str] = mapped_column("features")
+    graph: Mapped[str] = mapped_column(sa.Text)
+    _features: Mapped[str] = mapped_column("features", sa.TEXT)
     created_by: Mapped[str] = mapped_column(StringUUID, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         db.DateTime, nullable=False, server_default=db.text("CURRENT_TIMESTAMP(0)")
     )
-    updated_by: Mapped[str] = mapped_column(StringUUID)
-    updated_at: Mapped[datetime] = mapped_column(db.DateTime)
+    updated_by: Mapped[Optional[str]] = mapped_column(StringUUID)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, default=datetime.now(tz=UTC), server_onupdate=func.current_timestamp()
+    )
     _environment_variables: Mapped[str] = mapped_column(
         "environment_variables", db.Text, nullable=False, server_default="{}"
     )
@@ -166,9 +169,9 @@ class Workflow(db.Model):
             )
             features["file_upload"]["enabled"] = image_enabled
             features["file_upload"]["number_limits"] = image_number_limits
-            features["file_upload"]["allowed_upload_methods"] = image_transfer_methods
+            features["file_upload"]["allowed_file_upload_methods"] = image_transfer_methods
             features["file_upload"]["allowed_file_types"] = ["image"]
-            features["file_upload"]["allowed_extensions"] = []
+            features["file_upload"]["allowed_file_extensions"] = []
             del features["file_upload"]["image"]
             self._features = json.dumps(features)
         return self._features
