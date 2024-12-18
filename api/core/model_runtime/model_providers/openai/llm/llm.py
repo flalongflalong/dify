@@ -920,10 +920,12 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                         }
                         sub_messages.append(sub_message_dict)
                     elif isinstance(message_content, AudioPromptMessageContent):
+                        data_split = message_content.data.split(";base64,")
+                        base64_data = data_split[1]
                         sub_message_dict = {
                             "type": "input_audio",
                             "input_audio": {
-                                "data": message_content.data,
+                                "data": base64_data,
                                 "format": message_content.format,
                             },
                         }
@@ -943,6 +945,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                 }
         elif isinstance(message, SystemPromptMessage):
             message = cast(SystemPromptMessage, message)
+            if isinstance(message.content, list):
+                text_contents = filter(lambda c: isinstance(c, TextPromptMessageContent), message.content)
+                message.content = "".join(c.data for c in text_contents)
             message_dict = {"role": "system", "content": message.content}
         elif isinstance(message, ToolPromptMessage):
             message = cast(ToolPromptMessage, message)

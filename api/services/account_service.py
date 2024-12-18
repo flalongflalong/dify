@@ -420,7 +420,7 @@ class AccountService:
         if count is None:
             count = 0
         count = int(count) + 1
-        redis_client.setex(key, 60 * 60 * 24, count)
+        redis_client.setex(key, dify_config.LOGIN_LOCKOUT_DURATION, count)
 
     @staticmethod
     def is_login_error_rate_limit(email: str) -> bool:
@@ -573,7 +573,7 @@ class TenantService:
         return tenant
 
     @staticmethod
-    def switch_tenant(account: Account, tenant_id: Optional[int] = None) -> None:
+    def switch_tenant(account: Account, tenant_id: Optional[str] = None) -> None:
         """Switch the current workspace for the account"""
 
         # Ensure tenant_id is provided
@@ -672,7 +672,7 @@ class TenantService:
         return db.session.query(func.count(Tenant.id)).scalar()
 
     @staticmethod
-    def check_member_permission(tenant: Tenant, operator: Account, member: Account, action: str) -> None:
+    def check_member_permission(tenant: Tenant, operator: Account, member: Account | None, action: str) -> None:
         """Check member permission"""
         perms = {
             "add": [TenantAccountRole.OWNER, TenantAccountRole.ADMIN],
