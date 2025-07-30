@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable, Generator, Iterable, Sequence
-from typing import IO, Any, Optional, Union, cast
+from typing import IO, Any, Literal, Optional, Union, cast, overload
 
 from configs import dify_config
 from core.entities.embedding_type import EmbeddingInputType
@@ -98,6 +98,42 @@ class ModelInstance:
 
         return None
 
+    @overload
+    def invoke_llm(
+        self,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: Optional[dict] = None,
+        tools: Sequence[PromptMessageTool] | None = None,
+        stop: Optional[list[str]] = None,
+        stream: Literal[True] = True,
+        user: Optional[str] = None,
+        callbacks: Optional[list[Callback]] = None,
+    ) -> Generator: ...
+
+    @overload
+    def invoke_llm(
+        self,
+        prompt_messages: list[PromptMessage],
+        model_parameters: Optional[dict] = None,
+        tools: Sequence[PromptMessageTool] | None = None,
+        stop: Optional[list[str]] = None,
+        stream: Literal[False] = False,
+        user: Optional[str] = None,
+        callbacks: Optional[list[Callback]] = None,
+    ) -> LLMResult: ...
+
+    @overload
+    def invoke_llm(
+        self,
+        prompt_messages: list[PromptMessage],
+        model_parameters: Optional[dict] = None,
+        tools: Sequence[PromptMessageTool] | None = None,
+        stop: Optional[list[str]] = None,
+        stream: bool = True,
+        user: Optional[str] = None,
+        callbacks: Optional[list[Callback]] = None,
+    ) -> Union[LLMResult, Generator]: ...
+
     def invoke_llm(
         self,
         prompt_messages: Sequence[PromptMessage],
@@ -141,7 +177,7 @@ class ModelInstance:
         )
 
     def get_llm_num_tokens(
-        self, prompt_messages: list[PromptMessage], tools: Optional[list[PromptMessageTool]] = None
+        self, prompt_messages: Sequence[PromptMessage], tools: Optional[Sequence[PromptMessageTool]] = None
     ) -> int:
         """
         Get number of tokens for llm
@@ -192,7 +228,7 @@ class ModelInstance:
             ),
         )
 
-    def get_text_embedding_num_tokens(self, texts: list[str]) -> int:
+    def get_text_embedding_num_tokens(self, texts: list[str]) -> list[int]:
         """
         Get number of tokens for text embedding
 
@@ -204,7 +240,7 @@ class ModelInstance:
 
         self.model_type_instance = cast(TextEmbeddingModel, self.model_type_instance)
         return cast(
-            int,
+            list[int],
             self._round_robin_invoke(
                 function=self.model_type_instance.get_num_tokens,
                 model=self.model,
@@ -397,7 +433,7 @@ class ModelManager:
 
         return ModelInstance(provider_model_bundle, model)
 
-    def get_default_provider_model_name(self, tenant_id: str, model_type: ModelType) -> tuple[str, str]:
+    def get_default_provider_model_name(self, tenant_id: str, model_type: ModelType) -> tuple[str | None, str | None]:
         """
         Return first provider and the first model in the provider
         :param tenant_id: tenant id
@@ -499,14 +535,22 @@ class LBModelManager:
 
             if dify_config.DEBUG:
                 logger.info(
-                    f"Model LB\nid: {config.id}\nname:{config.name}\n"
-                    f"tenant_id: {self._tenant_id}\nprovider: {self._provider}\n"
-                    f"model_type: {self._model_type.value}\nmodel: {self._model}"
+                    """Model LB
+id: %s
+name:%s
+tenant_id: %s
+provider: %s
+model_type: %s
+model: %s""",
+                    config.id,
+                    config.name,
+                    self._tenant_id,
+                    self._provider,
+                    self._model_type.value,
+                    self._model,
                 )
 
             return config
-
-        return None
 
     def cooldown(self, config: ModelLoadBalancingConfiguration, expire: int = 60) -> None:
         """

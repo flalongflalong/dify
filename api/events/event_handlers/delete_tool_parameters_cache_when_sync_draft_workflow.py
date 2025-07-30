@@ -20,13 +20,14 @@ def handle(sender, **kwargs):
                     provider_id=tool_entity.provider_id,
                     tool_name=tool_entity.tool_name,
                     tenant_id=app.tenant_id,
+                    credential_id=tool_entity.credential_id,
                 )
                 manager = ToolParameterConfigurationManager(
                     tenant_id=app.tenant_id,
                     tool_runtime=tool_runtime,
                     provider_name=tool_entity.provider_name,
                     provider_type=tool_entity.provider_type,
-                    identity_id=f'WORKFLOW.{app.id}.{node_data.get("id")}',
+                    identity_id=f"WORKFLOW.{app.id}.{node_data.get('id')}",
                 )
                 manager.delete_tool_parameters_cache()
             except:

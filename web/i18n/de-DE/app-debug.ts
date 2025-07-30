@@ -198,6 +198,33 @@ const translation = {
         },
       },
     },
+    fileUpload: {
+      title: 'Datei-Upload',
+      description: 'Das Chat-Eingabefeld unterstützt das Hochladen von Bildern, Dokumenten und anderen Dateien.',
+      supportedTypes: 'Unterstützte Dateitypen',
+      numberLimit: 'Max. Uploads',
+      modalTitle: 'Datei-Upload-Einstellung',
+    },
+    imageUpload: {
+      title: 'Bild-Upload',
+      description: 'Ermöglicht das Hochladen von Bildern.',
+      supportedTypes: 'Unterstützte Dateitypen',
+      numberLimit: 'Max. Uploads',
+      modalTitle: 'Bild-Upload-Einstellung',
+    },
+    bar: {
+      empty: 'Funktionen aktivieren, um die Web-App-Benutzererfahrung zu verbessern',
+      enableText: 'Funktionen aktiviert',
+      manage: 'Verwalten',
+    },
+    documentUpload: {
+      title: 'Dokument',
+      description: 'Das Aktivieren von Dokumenten ermöglicht es dem Modell, Dokumente aufzunehmen und Fragen zu ihnen zu beantworten.',
+    },
+    audioUpload: {
+      title: 'Audio',
+      description: 'Das Aktivieren von Audio ermöglicht es dem Modell, Audiodateien für Transkription und Analyse zu verarbeiten.',
+    },
   },
   resetConfig: {
     title: 'Zurücksetzen bestätigen?',
@@ -249,7 +276,6 @@ const translation = {
     queryNoBeEmpty: 'Anfrage muss im Prompt gesetzt sein',
   },
   variableConfig: {
-    modalTitle: 'Feldeinstellungen',
     description: 'Einstellung für Variable {{varName}}',
     fieldType: 'Feldtyp',
     string: 'Kurztext',
@@ -261,6 +287,9 @@ const translation = {
     options: 'Optionen',
     addOption: 'Option hinzufügen',
     apiBasedVar: 'API-basierte Variable',
+    defaultValue: 'Standardwert',
+    noDefaultValue: 'Kein Standardwert',
+    selectDefaultValue: 'Standardwert auswählen',
   },
   vision: {
     name: 'Vision',
@@ -298,6 +327,7 @@ const translation = {
     add: 'Hinzufügen',
     writeOpener: 'Eröffnung schreiben',
     placeholder: 'Schreiben Sie hier Ihre Eröffnungsnachricht, Sie können Variablen verwenden, versuchen Sie {{Variable}} zu tippen.',
+    openingQuestionPlaceholder: 'Sie können Variablen verwenden, versuchen Sie {{variable}} einzugeben.',
     openingQuestion: 'Eröffnungsfragen',
     noDataPlaceHolder:
       'Den Dialog mit dem Benutzer zu beginnen, kann helfen, in konversationellen Anwendungen eine engere Verbindung mit ihnen herzustellen.',

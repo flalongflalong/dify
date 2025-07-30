@@ -198,6 +198,33 @@ const translation = {
         },
       },
     },
+    fileUpload: {
+      title: 'Upload de Arquivo',
+      description: 'A caixa de entrada do chat permite fazer upload de imagens, documentos e outros arquivos.',
+      supportedTypes: 'Tipos de Arquivo Suportados',
+      numberLimit: 'Máximo de uploads',
+      modalTitle: 'Configuração de Upload de Arquivo',
+    },
+    imageUpload: {
+      title: 'Upload de Imagem',
+      description: 'Permite fazer upload de imagens.',
+      supportedTypes: 'Tipos de Arquivo Suportados',
+      numberLimit: 'Máximo de uploads',
+      modalTitle: 'Configuração de Upload de Imagem',
+    },
+    bar: {
+      empty: 'Habilitar recursos para melhorar a experiência do usuário do aplicativo web',
+      enableText: 'Recursos Habilitados',
+      manage: 'Gerenciar',
+    },
+    documentUpload: {
+      title: 'Documento',
+      description: 'Habilitar Documento permitirá que o modelo aceite documentos e responda perguntas sobre eles.',
+    },
+    audioUpload: {
+      title: 'Áudio',
+      description: 'Habilitar Áudio permitirá que o modelo processe arquivos de áudio para transcrição e análise.',
+    },
   },
   automatic: {
     title: 'Orquestração Automatizada de Aplicativos',
@@ -285,13 +312,16 @@ const translation = {
     'labelName': 'Nome do Rótulo',
     'inputPlaceholder': 'Por favor, insira',
     'required': 'Obrigatório',
+    'hide': 'Ocultar',
     'errorMsg': {
-      varNameRequired: 'O nome da variável é obrigatório',
       labelNameRequired: 'O nome do rótulo é obrigatório',
       varNameCanBeRepeat: 'O nome da variável não pode ser repetido',
       atLeastOneOption: 'Pelo menos uma opção é obrigatória',
       optionRepeat: 'Tem opções repetidas',
     },
+    'defaultValue': 'Valor padrão',
+    'noDefaultValue': 'Nenhum valor padrão',
+    'selectDefaultValue': 'Selecionar valor padrão',
   },
   vision: {
     name: 'Visão',
@@ -333,6 +363,7 @@ const translation = {
     writeOpener: 'Escrever abertura',
     placeholder: 'Escreva sua mensagem de abertura aqui, você pode usar variáveis, tente digitar {{variável}}.',
     openingQuestion: 'Perguntas de Abertura',
+    openingQuestionPlaceholder: 'Você pode usar variáveis, tente digitar {{variable}}.',
     noDataPlaceHolder:
       'Iniciar a conversa com o usuário pode ajudar a IA a estabelecer uma conexão mais próxima com eles em aplicativos de conversação.',
     varTip: 'Você pode usar variáveis, tente digitar {{variável}}',

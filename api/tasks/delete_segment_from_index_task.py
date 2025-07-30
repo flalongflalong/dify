@@ -17,16 +17,16 @@ def delete_segment_from_index_task(index_node_ids: list, dataset_id: str, docume
     :param dataset_id:
     :param document_id:
 
-    Usage: delete_segment_from_index_task.delay(segment_ids)
+    Usage: delete_segment_from_index_task.delay(index_node_ids, dataset_id, document_id)
     """
     logging.info(click.style("Start delete segment from index", fg="green"))
     start_at = time.perf_counter()
     try:
-        dataset = db.session.query(Dataset).filter(Dataset.id == dataset_id).first()
+        dataset = db.session.query(Dataset).where(Dataset.id == dataset_id).first()
         if not dataset:
             return
 
-        dataset_document = db.session.query(Document).filter(Document.id == document_id).first()
+        dataset_document = db.session.query(Document).where(Document.id == document_id).first()
         if not dataset_document:
             return
 
@@ -38,6 +38,8 @@ def delete_segment_from_index_task(index_node_ids: list, dataset_id: str, docume
         index_processor.clean(dataset, index_node_ids, with_keywords=True, delete_child_chunks=True)
 
         end_at = time.perf_counter()
-        logging.info(click.style("Segment deleted from index latency: {}".format(end_at - start_at), fg="green"))
+        logging.info(click.style(f"Segment deleted from index latency: {end_at - start_at}", fg="green"))
     except Exception:
         logging.exception("delete segment from index failed")
+    finally:
+        db.session.close()

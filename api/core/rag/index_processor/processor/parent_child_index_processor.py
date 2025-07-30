@@ -39,6 +39,8 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
         all_documents = []  # type: ignore
         if rules.parent_mode == ParentMode.PARAGRAPH:
             # Split the text documents into nodes.
+            if not rules.segmentation:
+                raise ValueError("No segmentation found in rules.")
             splitter = self._get_splitter(
                 processing_rule_mode=process_rule.get("mode"),
                 max_tokens=rules.segmentation.max_tokens,
@@ -47,6 +49,8 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
                 embedding_model_instance=kwargs.get("embedding_model_instance"),
             )
             for document in documents:
+                if kwargs.get("preview") and len(all_documents) >= 10:
+                    return all_documents
                 # document clean
                 document_text = CleanProcessor.clean(document.page_content, process_rule)
                 document.page_content = document_text
@@ -114,7 +118,7 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
                 child_node_ids = (
                     db.session.query(ChildChunk.index_node_id)
                     .join(DocumentSegment, ChildChunk.segment_id == DocumentSegment.id)
-                    .filter(
+                    .where(
                         DocumentSegment.dataset_id == dataset.id,
                         DocumentSegment.index_node_id.in_(node_ids),
                         ChildChunk.dataset_id == dataset.id,
@@ -124,7 +128,7 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
                 child_node_ids = [child_node_id[0] for child_node_id in child_node_ids]
                 vector.delete_by_ids(child_node_ids)
                 if delete_child_chunks:
-                    db.session.query(ChildChunk).filter(
+                    db.session.query(ChildChunk).where(
                         ChildChunk.dataset_id == dataset.id, ChildChunk.index_node_id.in_(child_node_ids)
                     ).delete()
                     db.session.commit()
@@ -132,7 +136,7 @@ class ParentChildIndexProcessor(BaseIndexProcessor):
                 vector.delete()
 
                 if delete_child_chunks:
-                    db.session.query(ChildChunk).filter(ChildChunk.dataset_id == dataset.id).delete()
+                    db.session.query(ChildChunk).where(ChildChunk.dataset_id == dataset.id).delete()
                     db.session.commit()
 
     def retrieve(

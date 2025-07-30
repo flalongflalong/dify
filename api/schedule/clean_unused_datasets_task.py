@@ -2,7 +2,7 @@ import datetime
 import time
 
 import click
-from sqlalchemy import func
+from sqlalchemy import func, select
 from werkzeug.exceptions import NotFound
 
 import app
@@ -27,7 +27,7 @@ def clean_unused_datasets_task():
             # Subquery for counting new documents
             document_subquery_new = (
                 db.session.query(Document.dataset_id, func.count(Document.id).label("document_count"))
-                .filter(
+                .where(
                     Document.indexing_status == "completed",
                     Document.enabled == True,
                     Document.archived == False,
@@ -40,7 +40,7 @@ def clean_unused_datasets_task():
             # Subquery for counting old documents
             document_subquery_old = (
                 db.session.query(Document.dataset_id, func.count(Document.id).label("document_count"))
-                .filter(
+                .where(
                     Document.indexing_status == "completed",
                     Document.enabled == True,
                     Document.archived == False,
@@ -51,17 +51,19 @@ def clean_unused_datasets_task():
             )
 
             # Main query with join and filter
-            datasets = (
-                Dataset.query.outerjoin(document_subquery_new, Dataset.id == document_subquery_new.c.dataset_id)
+            stmt = (
+                select(Dataset)
+                .outerjoin(document_subquery_new, Dataset.id == document_subquery_new.c.dataset_id)
                 .outerjoin(document_subquery_old, Dataset.id == document_subquery_old.c.dataset_id)
-                .filter(
+                .where(
                     Dataset.created_at < plan_sandbox_clean_day,
                     func.coalesce(document_subquery_new.c.document_count, 0) == 0,
                     func.coalesce(document_subquery_old.c.document_count, 0) > 0,
                 )
                 .order_by(Dataset.created_at.desc())
-                .paginate(page=1, per_page=50)
             )
+
+            datasets = db.paginate(stmt, page=1, per_page=50)
 
         except NotFound:
             break
@@ -70,7 +72,7 @@ def clean_unused_datasets_task():
         for dataset in datasets:
             dataset_query = (
                 db.session.query(DatasetQuery)
-                .filter(DatasetQuery.created_at > plan_sandbox_clean_day, DatasetQuery.dataset_id == dataset.id)
+                .where(DatasetQuery.created_at > plan_sandbox_clean_day, DatasetQuery.dataset_id == dataset.id)
                 .all()
             )
             if not dataset_query or len(dataset_query) == 0:
@@ -78,7 +80,7 @@ def clean_unused_datasets_task():
                     # add auto disable log
                     documents = (
                         db.session.query(Document)
-                        .filter(
+                        .where(
                             Document.dataset_id == dataset.id,
                             Document.enabled == True,
                             Document.archived == False,
@@ -97,21 +99,17 @@ def clean_unused_datasets_task():
                     index_processor.clean(dataset, None)
 
                     # update document
-                    update_params = {Document.enabled: False}
-
-                    Document.query.filter_by(dataset_id=dataset.id).update(update_params)
+                    db.session.query(Document).filter_by(dataset_id=dataset.id).update({Document.enabled: False})
                     db.session.commit()
-                    click.echo(click.style("Cleaned unused dataset {} from db success!".format(dataset.id), fg="green"))
+                    click.echo(click.style(f"Cleaned unused dataset {dataset.id} from db success!", fg="green"))
                 except Exception as e:
-                    click.echo(
-                        click.style("clean dataset index error: {} {}".format(e.__class__.__name__, str(e)), fg="red")
-                    )
+                    click.echo(click.style(f"clean dataset index error: {e.__class__.__name__} {str(e)}", fg="red"))
     while True:
         try:
             # Subquery for counting new documents
             document_subquery_new = (
                 db.session.query(Document.dataset_id, func.count(Document.id).label("document_count"))
-                .filter(
+                .where(
                     Document.indexing_status == "completed",
                     Document.enabled == True,
                     Document.archived == False,
@@ -124,7 +122,7 @@ def clean_unused_datasets_task():
             # Subquery for counting old documents
             document_subquery_old = (
                 db.session.query(Document.dataset_id, func.count(Document.id).label("document_count"))
-                .filter(
+                .where(
                     Document.indexing_status == "completed",
                     Document.enabled == True,
                     Document.archived == False,
@@ -135,17 +133,18 @@ def clean_unused_datasets_task():
             )
 
             # Main query with join and filter
-            datasets = (
-                Dataset.query.outerjoin(document_subquery_new, Dataset.id == document_subquery_new.c.dataset_id)
+            stmt = (
+                select(Dataset)
+                .outerjoin(document_subquery_new, Dataset.id == document_subquery_new.c.dataset_id)
                 .outerjoin(document_subquery_old, Dataset.id == document_subquery_old.c.dataset_id)
-                .filter(
+                .where(
                     Dataset.created_at < plan_pro_clean_day,
                     func.coalesce(document_subquery_new.c.document_count, 0) == 0,
                     func.coalesce(document_subquery_old.c.document_count, 0) > 0,
                 )
                 .order_by(Dataset.created_at.desc())
-                .paginate(page=1, per_page=50)
             )
+            datasets = db.paginate(stmt, page=1, per_page=50)
 
         except NotFound:
             break
@@ -154,7 +153,7 @@ def clean_unused_datasets_task():
         for dataset in datasets:
             dataset_query = (
                 db.session.query(DatasetQuery)
-                .filter(DatasetQuery.created_at > plan_pro_clean_day, DatasetQuery.dataset_id == dataset.id)
+                .where(DatasetQuery.created_at > plan_pro_clean_day, DatasetQuery.dataset_id == dataset.id)
                 .all()
             )
             if not dataset_query or len(dataset_query) == 0:
@@ -173,16 +172,10 @@ def clean_unused_datasets_task():
                         index_processor.clean(dataset, None)
 
                         # update document
-                        update_params = {Document.enabled: False}
-
-                        Document.query.filter_by(dataset_id=dataset.id).update(update_params)
+                        db.session.query(Document).filter_by(dataset_id=dataset.id).update({Document.enabled: False})
                         db.session.commit()
-                        click.echo(
-                            click.style("Cleaned unused dataset {} from db success!".format(dataset.id), fg="green")
-                        )
+                        click.echo(click.style(f"Cleaned unused dataset {dataset.id} from db success!", fg="green"))
                 except Exception as e:
-                    click.echo(
-                        click.style("clean dataset index error: {} {}".format(e.__class__.__name__, str(e)), fg="red")
-                    )
+                    click.echo(click.style(f"clean dataset index error: {e.__class__.__name__} {str(e)}", fg="red"))
     end_at = time.perf_counter()
-    click.echo(click.style("Cleaned unused dataset from db success latency: {}".format(end_at - start_at), fg="green"))
+    click.echo(click.style(f"Cleaned unused dataset from db success latency: {end_at - start_at}", fg="green"))

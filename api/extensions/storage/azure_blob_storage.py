@@ -1,11 +1,14 @@
 from collections.abc import Generator
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
+from typing import Optional
 
+from azure.identity import ChainedTokenCredential, DefaultAzureCredential
 from azure.storage.blob import AccountSasPermissions, BlobServiceClient, ResourceTypes, generate_account_sas
 
 from configs import dify_config
 from extensions.ext_redis import redis_client
 from extensions.storage.base_storage import BaseStorage
+from libs.datetime_utils import naive_utc_now
 
 
 class AzureBlobStorage(BaseStorage):
@@ -17,6 +20,12 @@ class AzureBlobStorage(BaseStorage):
         self.account_url = dify_config.AZURE_BLOB_ACCOUNT_URL
         self.account_name = dify_config.AZURE_BLOB_ACCOUNT_NAME
         self.account_key = dify_config.AZURE_BLOB_ACCOUNT_KEY
+
+        self.credential: Optional[ChainedTokenCredential] = None
+        if self.account_key == "managedidentity":
+            self.credential = DefaultAzureCredential()
+        else:
+            self.credential = None
 
     def save(self, filename, data):
         client = self._sync_client()
@@ -57,7 +66,10 @@ class AzureBlobStorage(BaseStorage):
         blob_container.delete_blob(filename)
 
     def _sync_client(self):
-        cache_key = "azure_blob_sas_token_{}_{}".format(self.account_name, self.account_key)
+        if self.account_key == "managedidentity":
+            return BlobServiceClient(account_url=self.account_url, credential=self.credential)  # type: ignore
+
+        cache_key = f"azure_blob_sas_token_{self.account_name}_{self.account_key}"
         cache_result = redis_client.get(cache_key)
         if cache_result is not None:
             sas_token = cache_result.decode("utf-8")
@@ -67,7 +79,7 @@ class AzureBlobStorage(BaseStorage):
                 account_key=self.account_key or "",
                 resource_types=ResourceTypes(service=True, container=True, object=True),
                 permission=AccountSasPermissions(read=True, write=True, delete=True, list=True, add=True, create=True),
-                expiry=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1),
+                expiry=naive_utc_now() + timedelta(hours=1),
             )
             redis_client.set(cache_key, sas_token, ex=3000)
         return BlobServiceClient(account_url=self.account_url or "", credential=sas_token)

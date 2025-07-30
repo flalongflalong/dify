@@ -25,7 +25,7 @@ const translation = {
     debugConfig: '除錯',
     addFeature: '新增功能',
     automatic: '產生',
-    stopResponding: '停止響應',
+    stopResponding: '停止回應',
     agree: '贊同',
     disagree: '反對',
     cancelAgree: '取消贊同',
@@ -123,7 +123,7 @@ const translation = {
         ok: '好的',
         contextVarNotEmpty: '上下文查詢變數不能為空',
         deleteContextVarTitle: '刪除變數“{{varName}}”？',
-        deleteContextVarTip: '該變數已被設定為上下文查詢變數，刪除該變數將影響知識庫的正常使用。 如果您仍需要刪除它，請在上下文部分中重新選擇它。',
+        deleteContextVarTip: '該變數已被設定為上下文查詢變數，刪除該變數將影響知識庫的正常使用。如果您仍需要刪除它，請在上下文部分中重新選擇它。',
       },
     },
     tools: {
@@ -198,6 +198,33 @@ const translation = {
         },
       },
     },
+    fileUpload: {
+      title: '檔案上傳',
+      description: '聊天輸入框支援上傳檔案。類型包括圖片、文件以及其它類型',
+      supportedTypes: '支援的檔案類型',
+      numberLimit: '最大上傳數',
+      modalTitle: '檔案上傳設定',
+    },
+    imageUpload: {
+      title: '圖片上傳',
+      description: '支援上傳圖片',
+      supportedTypes: '支援的檔案類型',
+      numberLimit: '最大上傳數',
+      modalTitle: '圖片上傳設定',
+    },
+    bar: {
+      empty: '開啟功能增強 web app 使用者體驗',
+      enableText: '功能已開啟',
+      manage: '管理',
+    },
+    documentUpload: {
+      title: '文件',
+      description: '啟用文件後，模型可以接收文件並回答關於它們的問題。',
+    },
+    audioUpload: {
+      title: '音訊',
+      description: '啟用音訊後，模型可以處理音訊檔案進行轉錄和分析。',
+    },
   },
   resetConfig: {
     title: '確認重置？',
@@ -264,6 +291,7 @@ const translation = {
     'inputPlaceholder': '請輸入',
     'labelName': '顯示名稱',
     'required': '必填',
+    'hide': '隱藏',
     'errorMsg': {
       varNameRequired: '變數名稱必填',
       labelNameRequired: '顯示名稱必填',
@@ -271,6 +299,9 @@ const translation = {
       atLeastOneOption: '至少需要一個選項',
       optionRepeat: '選項不能重複',
     },
+    'defaultValue': '預設值',
+    'noDefaultValue': '無預設值',
+    'selectDefaultValue': '選擇預設值',
   },
   vision: {
     name: '視覺',
@@ -279,9 +310,9 @@ const translation = {
     visionSettings: {
       title: '視覺設定',
       resolution: '解析度',
-      resolutionTooltip: `低解析度模式將使模型接收影象的低解析度版本，尺寸為512 x 512，並使用65 Tokens 來表示影象。這樣可以使API更快地返回響應，並在不需要高細節的用例中消耗更少的輸入。
+      resolutionTooltip: `低解析度模式將使模型接收影象的低解析度版本，尺寸為 512 x 512，並使用 65 Tokens 來表示影象。這樣可以使 API 更快地返回響應，並在不需要高細節的用例中消耗更少的輸入。
       \n
-      高解析度模式將首先允許模型檢視低解析度影象，然後根據輸入影象的大小建立512畫素的詳細裁剪影象。每個詳細裁剪影象使用兩倍的預算總共為129 Tokens。`,
+      高解析度模式將首先允許模型檢視低解析度影象，然後根據輸入影象的大小建立 512 畫素的詳細裁剪影象。每個詳細裁剪影象使用兩倍的預算總共為 129 Tokens。`,
       high: '高',
       low: '低',
       uploadMethod: '上傳方式',
@@ -312,9 +343,10 @@ const translation = {
     writeOpener: '編寫開場白',
     placeholder: '在這裡寫下你的開場白，你可以使用變數，嘗試輸入 {{variable}}。',
     openingQuestion: '開場問題',
+    openingQuestionPlaceholder: '可以使用變量，嘗試輸入 {{variable}}。',
     noDataPlaceHolder:
       '在對話型應用中，讓 AI 主動說第一段話可以拉近與使用者間的距離。',
-    varTip: '你可以使用變數， 試試輸入 {{variable}}',
+    varTip: '你可以使用變數，試試輸入 {{variable}}',
     tooShort: '對話前提示詞至少 20 字才能生成開場白',
     notIncludeKey: '字首提示詞中不包含變數 {{key}}。請在字首提示詞中新增該變數',
   },
@@ -342,9 +374,9 @@ const translation = {
   result: '結果',
   datasetConfig: {
     settingTitle: '召回設定',
-    knowledgeTip: '點選 “+” 按鈕新增知識庫',
+    knowledgeTip: '點選“+”按鈕新增知識庫',
     retrieveOneWay: {
-      title: 'N選1召回',
+      title: 'N 選 1 召回',
       description: '根據使用者意圖和知識庫描述，由 Agent 自主判斷選擇最匹配的單個知識庫來查詢相關文字，適合知識庫區分度大且知識庫數量偏少的應用。',
     },
     retrieveMultiWay: {

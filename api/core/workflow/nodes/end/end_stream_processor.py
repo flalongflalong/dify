@@ -33,7 +33,7 @@ class EndStreamProcessor(StreamProcessor):
 
                 yield event
             elif isinstance(event, NodeRunStreamChunkEvent):
-                if event.in_iteration_id:
+                if event.in_iteration_id or event.in_loop_id:
                     if self.has_output and event.node_id not in self.output_node_ids:
                         event.chunk_content = "\n" + event.chunk_content
 
@@ -139,6 +139,7 @@ class EndStreamProcessor(StreamProcessor):
                         route_node_state=event.route_node_state,
                         parallel_id=event.parallel_id,
                         parallel_start_node_id=event.parallel_start_node_id,
+                        node_version=event.node_version,
                     )
 
                 self.route_position[end_node_id] += 1

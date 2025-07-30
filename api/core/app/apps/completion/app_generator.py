@@ -4,16 +4,17 @@ import uuid
 from collections.abc import Generator, Mapping
 from typing import Any, Literal, Union, overload
 
-from flask import Flask, current_app
+from flask import Flask, copy_current_request_context, current_app
 from pydantic import ValidationError
 
 from configs import dify_config
 from core.app.app_config.easy_ui_based_app.model_config.converter import ModelConfigConverter
 from core.app.app_config.features.file_upload.manager import FileUploadConfigManager
-from core.app.apps.base_app_queue_manager import AppQueueManager, GenerateTaskStoppedError, PublishFrom
+from core.app.apps.base_app_queue_manager import AppQueueManager, PublishFrom
 from core.app.apps.completion.app_config_manager import CompletionAppConfigManager
 from core.app.apps.completion.app_runner import CompletionAppRunner
 from core.app.apps.completion.generate_response_converter import CompletionAppGenerateResponseConverter
+from core.app.apps.exc import GenerateTaskStoppedError
 from core.app.apps.message_based_app_generator import MessageBasedAppGenerator
 from core.app.apps.message_based_app_queue_manager import MessageBasedAppQueueManager
 from core.app.entities.app_invoke_entities import CompletionAppGenerateEntity, InvokeFrom
@@ -37,7 +38,7 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         args: Mapping[str, Any],
         invoke_from: InvokeFrom,
         streaming: Literal[True],
-    ) -> Generator[str, None, None]: ...
+    ) -> Generator[str | Mapping[str, Any], None, None]: ...
 
     @overload
     def generate(
@@ -56,8 +57,8 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         user: Union[Account, EndUser],
         args: Mapping[str, Any],
         invoke_from: InvokeFrom,
-        streaming: bool,
-    ) -> Mapping[str, Any] | Generator[str, None, None]: ...
+        streaming: bool = False,
+    ) -> Union[Mapping[str, Any], Generator[str | Mapping[str, Any], None, None]]: ...
 
     def generate(
         self,
@@ -66,7 +67,7 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         args: Mapping[str, Any],
         invoke_from: InvokeFrom,
         streaming: bool = True,
-    ):
+    ) -> Union[Mapping[str, Any], Generator[str | Mapping[str, Any], None, None]]:
         """
         Generate App response.
 
@@ -74,7 +75,7 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         :param user: account or end user
         :param args: request args
         :param invoke_from: invoke from source
-        :param stream: is stream
+        :param streaming: is stream
         """
         query = args["query"]
         if not isinstance(query, str):
@@ -101,6 +102,11 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
             )
 
         # parse files
+        # TODO(QuantumGhost): Move file parsing logic to the API controller layer
+        # for better separation of concerns.
+        #
+        # For implementation reference, see the `_parse_file` function and
+        # `DraftWorkflowNodeRunApi` class which handle this properly.
         files = args["files"] if args.get("files") else []
         file_extra_config = FileUploadConfigManager.convert(override_model_config_dict or app_model_config.to_dict())
         if file_extra_config:
@@ -151,16 +157,17 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
             message_id=message.id,
         )
 
-        # new thread
-        worker_thread = threading.Thread(
-            target=self._generate_worker,
-            kwargs={
-                "flask_app": current_app._get_current_object(),  # type: ignore
-                "application_generate_entity": application_generate_entity,
-                "queue_manager": queue_manager,
-                "message_id": message.id,
-            },
-        )
+        # new thread with request context
+        @copy_current_request_context
+        def worker_with_context():
+            return self._generate_worker(
+                flask_app=current_app._get_current_object(),  # type: ignore
+                application_generate_entity=application_generate_entity,
+                queue_manager=queue_manager,
+                message_id=message.id,
+            )
+
+        worker_thread = threading.Thread(target=worker_with_context)
 
         worker_thread.start()
 
@@ -195,8 +202,6 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
             try:
                 # get message
                 message = self._get_message(message_id)
-                if message is None:
-                    raise MessageNotExistsError()
 
                 # chatbot app
                 runner = CompletionAppRunner()
@@ -231,7 +236,7 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         user: Union[Account, EndUser],
         invoke_from: InvokeFrom,
         stream: bool = True,
-    ) -> Union[Mapping[str, Any], Generator[str, None, None]]:
+    ) -> Union[Mapping, Generator[Mapping | str, None, None]]:
         """
         Generate App response.
 
@@ -243,7 +248,7 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
         """
         message = (
             db.session.query(Message)
-            .filter(
+            .where(
                 Message.id == message_id,
                 Message.app_id == app_model.id,
                 Message.from_source == ("api" if isinstance(user, EndUser) else "console"),
@@ -313,16 +318,17 @@ class CompletionAppGenerator(MessageBasedAppGenerator):
             message_id=message.id,
         )
 
-        # new thread
-        worker_thread = threading.Thread(
-            target=self._generate_worker,
-            kwargs={
-                "flask_app": current_app._get_current_object(),  # type: ignore
-                "application_generate_entity": application_generate_entity,
-                "queue_manager": queue_manager,
-                "message_id": message.id,
-            },
-        )
+        # new thread with request context
+        @copy_current_request_context
+        def worker_with_context():
+            return self._generate_worker(
+                flask_app=current_app._get_current_object(),  # type: ignore
+                application_generate_entity=application_generate_entity,
+                queue_manager=queue_manager,
+                message_id=message.id,
+            )
+
+        worker_thread = threading.Thread(target=worker_with_context)
 
         worker_thread.start()
 

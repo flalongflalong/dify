@@ -17,9 +17,24 @@ class InvokeFrom(Enum):
     Invoke From.
     """
 
+    # SERVICE_API indicates that this invocation is from an API call to Dify app.
+    #
+    # Description of service api in Dify docs:
+    # https://docs.dify.ai/en/guides/application-publishing/developing-with-apis
     SERVICE_API = "service-api"
+
+    # WEB_APP indicates that this invocation is from
+    # the web app of the workflow (or chatflow).
+    #
+    # Description of web app in Dify docs:
+    # https://docs.dify.ai/en/guides/application-publishing/launch-your-webapp-quickly/README
     WEB_APP = "web-app"
+
+    # EXPLORE indicates that this invocation is from
+    # the workflow (or chatflow) explore page.
     EXPLORE = "explore"
+    # DEBUGGER indicates that this invocation is from
+    # the workflow (or chatflow) edit page.
     DEBUGGER = "debugger"
 
     @classmethod
@@ -63,9 +78,9 @@ class ModelConfigWithCredentialsEntity(BaseModel):
     model_schema: AIModelEntity
     mode: str
     provider_model_bundle: ProviderModelBundle
-    credentials: dict[str, Any] = {}
-    parameters: dict[str, Any] = {}
-    stop: list[str] = []
+    credentials: dict[str, Any] = Field(default_factory=dict)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    stop: list[str] = Field(default_factory=list)
 
     # pydantic configs
     model_config = ConfigDict(protected_namespaces=())
@@ -75,6 +90,8 @@ class AppGenerateEntity(BaseModel):
     """
     App Generate Entity.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     task_id: str
 
@@ -94,13 +111,10 @@ class AppGenerateEntity(BaseModel):
     call_depth: int = 0
 
     # extra parameters, like: auto_generate_conversation_name
-    extras: dict[str, Any] = {}
+    extras: dict[str, Any] = Field(default_factory=dict)
 
     # tracing instance
     trace_manager: Optional[TraceQueueManager] = None
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class EasyUIBasedAppGenerateEntity(AppGenerateEntity):
@@ -183,9 +197,19 @@ class AdvancedChatAppGenerateEntity(ConversationAppGenerateEntity):
         """
 
         node_id: str
-        inputs: dict
+        inputs: Mapping
 
     single_iteration_run: Optional[SingleIterationRunEntity] = None
+
+    class SingleLoopRunEntity(BaseModel):
+        """
+        Single Loop Run Entity.
+        """
+
+        node_id: str
+        inputs: Mapping
+
+    single_loop_run: Optional[SingleLoopRunEntity] = None
 
 
 class WorkflowAppGenerateEntity(AppGenerateEntity):
@@ -195,7 +219,7 @@ class WorkflowAppGenerateEntity(AppGenerateEntity):
 
     # app config
     app_config: WorkflowUIBasedAppConfig
-    workflow_run_id: str
+    workflow_execution_id: str
 
     class SingleIterationRunEntity(BaseModel):
         """
@@ -206,3 +230,13 @@ class WorkflowAppGenerateEntity(AppGenerateEntity):
         inputs: dict
 
     single_iteration_run: Optional[SingleIterationRunEntity] = None
+
+    class SingleLoopRunEntity(BaseModel):
+        """
+        Single Loop Run Entity.
+        """
+
+        node_id: str
+        inputs: dict
+
+    single_loop_run: Optional[SingleLoopRunEntity] = None

@@ -12,7 +12,7 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings
 
-from configs.feature.hosted_service import HostedServiceConfig
+from .hosted_service import HostedServiceConfig
 
 
 class SecurityConfig(BaseSettings):
@@ -29,6 +29,15 @@ class SecurityConfig(BaseSettings):
 
     RESET_PASSWORD_TOKEN_EXPIRY_MINUTES: PositiveInt = Field(
         description="Duration in minutes for which a password reset token remains valid",
+        default=5,
+    )
+    CHANGE_EMAIL_TOKEN_EXPIRY_MINUTES: PositiveInt = Field(
+        description="Duration in minutes for which a change email token remains valid",
+        default=5,
+    )
+
+    OWNER_TRANSFER_TOKEN_EXPIRY_MINUTES: PositiveInt = Field(
+        description="Duration in minutes for which a owner transfer token remains valid",
         default=5,
     )
 
@@ -61,6 +70,10 @@ class AppExecutionConfig(BaseSettings):
         description="Maximum number of concurrent active requests per app (0 for unlimited)",
         default=0,
     )
+    APP_DAILY_RATE_LIMIT: NonNegativeInt = Field(
+        description="Maximum number of requests per app per day",
+        default=5000,
+    )
 
 
 class CodeExecutionSandboxConfig(BaseSettings):
@@ -70,7 +83,7 @@ class CodeExecutionSandboxConfig(BaseSettings):
 
     CODE_EXECUTION_ENDPOINT: HttpUrl = Field(
         description="URL endpoint for the code execution service",
-        default="http://sandbox:8194",
+        default=HttpUrl("http://sandbox:8194"),
     )
 
     CODE_EXECUTION_API_KEY: str = Field(
@@ -134,6 +147,60 @@ class CodeExecutionSandboxConfig(BaseSettings):
     )
 
 
+class PluginConfig(BaseSettings):
+    """
+    Plugin configs
+    """
+
+    PLUGIN_DAEMON_URL: HttpUrl = Field(
+        description="Plugin API URL",
+        default=HttpUrl("http://localhost:5002"),
+    )
+
+    PLUGIN_DAEMON_KEY: str = Field(
+        description="Plugin API key",
+        default="plugin-api-key",
+    )
+
+    INNER_API_KEY_FOR_PLUGIN: str = Field(description="Inner api key for plugin", default="inner-api-key")
+
+    PLUGIN_REMOTE_INSTALL_HOST: str = Field(
+        description="Plugin Remote Install Host",
+        default="localhost",
+    )
+
+    PLUGIN_REMOTE_INSTALL_PORT: PositiveInt = Field(
+        description="Plugin Remote Install Port",
+        default=5003,
+    )
+
+    PLUGIN_MAX_PACKAGE_SIZE: PositiveInt = Field(
+        description="Maximum allowed size for plugin packages in bytes",
+        default=15728640,
+    )
+
+    PLUGIN_MAX_BUNDLE_SIZE: PositiveInt = Field(
+        description="Maximum allowed size for plugin bundles in bytes",
+        default=15728640 * 12,
+    )
+
+
+class MarketplaceConfig(BaseSettings):
+    """
+    Configuration for marketplace
+    """
+
+    MARKETPLACE_ENABLED: bool = Field(
+        description="Enable or disable marketplace",
+        default=True,
+    )
+
+    MARKETPLACE_API_URL: HttpUrl = Field(
+        description="Marketplace API URL",
+        default=HttpUrl("https://marketplace.dify.ai"),
+    )
+
+
 class EndpointConfig(BaseSettings):
     """
     Configuration for various application endpoints and URLs
@@ -146,7 +213,7 @@ class EndpointConfig(BaseSettings):
     )
 
     CONSOLE_WEB_URL: str = Field(
-        description="Base URL for the console web interface," "used for frontend references and CORS configuration",
+        description="Base URL for the console web interface,used for frontend references and CORS configuration",
         default="",
     )
 
@@ -158,6 +225,10 @@ class EndpointConfig(BaseSettings):
     APP_WEB_URL: str = Field(
         description="Base URL for the web application, used for frontend references",
         default="",
+    )
+
+    ENDPOINT_URL_TEMPLATE: str = Field(
+        description="Template url for endpoint plugin", default="http://localhost:5002/e/{hook_id}"
     )
 
 
@@ -172,6 +243,13 @@ class FileAccessConfig(BaseSettings):
         "Url is signed and has expiration time.",
         validation_alias=AliasChoices("FILES_URL", "CONSOLE_API_URL"),
         alias_priority=1,
+        default="",
+    )
+
+    INTERNAL_FILES_URL: str = Field(
+        description="Internal base URL for file access within Docker network,"
+        " used for plugin daemon and internal service communication."
+        " Falls back to FILES_URL if not specified.",
         default="",
     )
 
@@ -274,6 +352,11 @@ class HttpConfig(BaseSettings):
         default=1 * 1024 * 1024,
     )
 
+    HTTP_REQUEST_NODE_SSL_VERIFY: bool = Field(
+        description="Enable or disable SSL verification for HTTP requests",
+        default=True,
+    )
+
     SSRF_DEFAULT_MAX_RETRIES: PositiveInt = Field(
         description="Maximum number of retries for network requests (SSRF)",
         default=3,
@@ -315,8 +398,8 @@ class HttpConfig(BaseSettings):
     )
 
     RESPECT_XFORWARD_HEADERS_ENABLED: bool = Field(
-        description="Enable or disable the X-Forwarded-For Proxy Fix middleware from Werkzeug"
-        " to respect X-* headers to redirect clients",
+        description="Enable handling of X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Port headers"
+        " when the app is behind a single trusted reverse proxy.",
         default=False,
     )
 
@@ -380,11 +463,16 @@ class LoggingConfig(BaseSettings):
 
 class ModelLoadBalanceConfig(BaseSettings):
     """
-    Configuration for model load balancing
+    Configuration for model load balancing and token counting
     """
 
     MODEL_LB_ENABLED: bool = Field(
         description="Enable or disable load balancing for models",
+        default=False,
+    )
+
+    PLUGIN_BASED_TOKEN_COUNTING_ENABLED: bool = Field(
+        description="Enable or disable plugin based token counting. If disabled, token counting will return 0.",
         default=False,
     )
 
@@ -452,6 +540,38 @@ class WorkflowNodeExecutionConfig(BaseSettings):
         default=100,
     )
 
+    WORKFLOW_NODE_EXECUTION_STORAGE: str = Field(
+        default="rdbms",
+        description="Storage backend for WorkflowNodeExecution. Options: 'rdbms', 'hybrid'",
+    )
+
+
+class RepositoryConfig(BaseSettings):
+    """
+    Configuration for repository implementations
+    """
+
+    CORE_WORKFLOW_EXECUTION_REPOSITORY: str = Field(
+        description="Repository implementation for WorkflowExecution. Specify as a module path",
+        default="core.repositories.sqlalchemy_workflow_execution_repository.SQLAlchemyWorkflowExecutionRepository",
+    )
+
+    CORE_WORKFLOW_NODE_EXECUTION_REPOSITORY: str = Field(
+        description="Repository implementation for WorkflowNodeExecution. Specify as a module path",
+        default="core.repositories.sqlalchemy_workflow_node_execution_repository.SQLAlchemyWorkflowNodeExecutionRepository",
+    )
+
+    API_WORKFLOW_NODE_EXECUTION_REPOSITORY: str = Field(
+        description="Service-layer repository implementation for WorkflowNodeExecutionModel operations. "
+        "Specify as a module path",
+        default="repositories.sqlalchemy_api_workflow_node_execution_repository.DifyAPISQLAlchemyWorkflowNodeExecutionRepository",
+    )
+
+    API_WORKFLOW_RUN_REPOSITORY: str = Field(
+        description="Service-layer repository implementation for WorkflowRun operations. Specify as a module path",
+        default="repositories.sqlalchemy_api_workflow_run_repository.DifyAPISQLAlchemyWorkflowRunRepository",
+    )
+
 
 class AuthConfig(BaseSettings):
     """
@@ -498,6 +618,21 @@ class AuthConfig(BaseSettings):
         default=86400,
     )
 
+    FORGOT_PASSWORD_LOCKOUT_DURATION: PositiveInt = Field(
+        description="Time (in seconds) a user must wait before retrying password reset after exceeding the rate limit.",
+        default=86400,
+    )
+
+    CHANGE_EMAIL_LOCKOUT_DURATION: PositiveInt = Field(
+        description="Time (in seconds) a user must wait before retrying change email after exceeding the rate limit.",
+        default=86400,
+    )
+
+    OWNER_TRANSFER_LOCKOUT_DURATION: PositiveInt = Field(
+        description="Time (in seconds) a user must wait before retrying owner transfer after exceeding the rate limit.",
+        default=86400,
+    )
+
 
 class ModerationConfig(BaseSettings):
     """
@@ -527,7 +662,7 @@ class MailConfig(BaseSettings):
     """
 
     MAIL_TYPE: Optional[str] = Field(
-        description="Email service provider type ('smtp' or 'resend'), default to None.",
+        description="Email service provider type ('smtp' or 'resend' or 'sendGrid), default to None.",
         default=None,
     )
 
@@ -579,6 +714,11 @@ class MailConfig(BaseSettings):
     EMAIL_SEND_IP_LIMIT_PER_MINUTE: PositiveInt = Field(
         description="Maximum number of emails allowed to be sent from the same IP address in a minute",
         default=50,
+    )
+
+    SENDGRID_API_KEY: Optional[str] = Field(
+        description="API key for SendGrid service",
+        default=None,
     )
 
 
@@ -692,6 +832,41 @@ class CeleryBeatConfig(BaseSettings):
     )
 
 
+class CeleryScheduleTasksConfig(BaseSettings):
+    ENABLE_CLEAN_EMBEDDING_CACHE_TASK: bool = Field(
+        description="Enable clean embedding cache task",
+        default=False,
+    )
+    ENABLE_CLEAN_UNUSED_DATASETS_TASK: bool = Field(
+        description="Enable clean unused datasets task",
+        default=False,
+    )
+    ENABLE_CREATE_TIDB_SERVERLESS_TASK: bool = Field(
+        description="Enable create tidb service job task",
+        default=False,
+    )
+    ENABLE_UPDATE_TIDB_SERVERLESS_STATUS_TASK: bool = Field(
+        description="Enable update tidb service job status task",
+        default=False,
+    )
+    ENABLE_CLEAN_MESSAGES: bool = Field(
+        description="Enable clean messages task",
+        default=False,
+    )
+    ENABLE_MAIL_CLEAN_DOCUMENT_NOTIFY_TASK: bool = Field(
+        description="Enable mail clean document notify task",
+        default=False,
+    )
+    ENABLE_DATASETS_QUEUE_MONITOR: bool = Field(
+        description="Enable queue monitor task",
+        default=False,
+    )
+    ENABLE_CHECK_UPGRADABLE_PLUGIN_TASK: bool = Field(
+        description="Enable check upgradable plugin task",
+        default=True,
+    )
+
+
 class PositionConfig(BaseSettings):
     POSITION_PROVIDER_PINS: str = Field(
         description="Comma-separated list of pinned model providers",
@@ -781,6 +956,11 @@ class AccountConfig(BaseSettings):
         default=5,
     )
 
+    EDUCATION_ENABLED: bool = Field(
+        description="whether to enable education identity",
+        default=False,
+    )
+
 
 class FeatureConfig(
     # place the configs in alphabet order
@@ -788,6 +968,8 @@ class FeatureConfig(
     AuthConfig,  # Changed from OAuthConfig to AuthConfig
     BillingConfig,
     CodeExecutionSandboxConfig,
+    PluginConfig,
+    MarketplaceConfig,
     DataSetConfig,
     EndpointConfig,
     FileAccessConfig,
@@ -802,6 +984,7 @@ class FeatureConfig(
     MultiModalTransferConfig,
     PositionConfig,
     RagEtlConfig,
+    RepositoryConfig,
     SecurityConfig,
     ToolConfig,
     UpdateConfig,
@@ -813,5 +996,6 @@ class FeatureConfig(
     # hosted services config
     HostedServiceConfig,
     CeleryBeatConfig,
+    CeleryScheduleTasksConfig,
 ):
     pass

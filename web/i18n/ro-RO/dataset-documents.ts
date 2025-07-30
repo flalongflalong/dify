@@ -28,6 +28,8 @@ const translation = {
       delete: 'Șterge',
       enableWarning: 'Fișierul arhivat nu poate fi activat',
       sync: 'Sincronizează',
+      pause: 'Pauză',
+      resume: 'Reia',
     },
     index: {
       enable: 'Activează',
@@ -133,7 +135,7 @@ const translation = {
         language: 'Limbă',
         authorPublisher: 'Autor/Editor',
         publishDate: 'Data publicării',
-        topicsKeywords: 'Subiecte/Cuvinte cheie',
+        topicKeywords: 'Subiecte/Cuvinte cheie',
         description: 'Descriere',
       },
       paper: {
@@ -360,6 +362,7 @@ const translation = {
     characters_one: 'caracter',
     regenerationSuccessTitle: 'Regenerare finalizată',
     editedAt: 'Editat la',
+    dateTimeFormat: 'MM/DD/YYYY h:mm',
     addChunk: 'Adăugați o bucată',
     chunk: 'Bucată',
     chunks_one: 'BUCATĂ',
@@ -389,6 +392,8 @@ const translation = {
     regeneratingTitle: 'Regenerarea bucăților secundare',
     addChildChunk: 'Adăugați o bucată copil',
     searchResults_other: 'REZULTATELE',
+    keywordDuplicate: 'Cuvântul cheie există deja',
+    keywordEmpty: 'Cuvântul cheie nu poate fi gol',
   },
 }
 

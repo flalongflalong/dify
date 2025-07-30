@@ -1,8 +1,10 @@
 from typing import Any
 
-import flask_restful  # type: ignore
-from flask_login import current_user  # type: ignore
+import flask_restful
+from flask_login import current_user
 from flask_restful import Resource, fields, marshal_with
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from werkzeug.exceptions import Forbidden
 
 from extensions.ext_database import db
@@ -26,7 +28,16 @@ api_key_list = {"data": fields.List(fields.Nested(api_key_fields), attribute="it
 
 
 def _get_resource(resource_id, tenant_id, resource_model):
-    resource = resource_model.query.filter_by(id=resource_id, tenant_id=tenant_id).first()
+    if resource_model == App:
+        with Session(db.engine) as session:
+            resource = session.execute(
+                select(resource_model).filter_by(id=resource_id, tenant_id=tenant_id)
+            ).scalar_one_or_none()
+    else:
+        with Session(db.engine) as session:
+            resource = session.execute(
+                select(resource_model).filter_by(id=resource_id, tenant_id=tenant_id)
+            ).scalar_one_or_none()
 
     if resource is None:
         flask_restful.abort(404, message=f"{resource_model.__name__} not found.")
@@ -50,7 +61,7 @@ class BaseApiKeyListResource(Resource):
         _get_resource(resource_id, current_user.current_tenant_id, self.resource_model)
         keys = (
             db.session.query(ApiToken)
-            .filter(ApiToken.type == self.resource_type, getattr(ApiToken, self.resource_id_field) == resource_id)
+            .where(ApiToken.type == self.resource_type, getattr(ApiToken, self.resource_id_field) == resource_id)
             .all()
         )
         return {"items": keys}
@@ -65,7 +76,7 @@ class BaseApiKeyListResource(Resource):
 
         current_key_count = (
             db.session.query(ApiToken)
-            .filter(ApiToken.type == self.resource_type, getattr(ApiToken, self.resource_id_field) == resource_id)
+            .where(ApiToken.type == self.resource_type, getattr(ApiToken, self.resource_id_field) == resource_id)
             .count()
         )
 
@@ -106,7 +117,7 @@ class BaseApiKeyResource(Resource):
 
         key = (
             db.session.query(ApiToken)
-            .filter(
+            .where(
                 getattr(ApiToken, self.resource_id_field) == resource_id,
                 ApiToken.type == self.resource_type,
                 ApiToken.id == api_key_id,
@@ -117,7 +128,7 @@ class BaseApiKeyResource(Resource):
         if key is None:
             flask_restful.abort(404, message="API key not found")
 
-        db.session.query(ApiToken).filter(ApiToken.id == api_key_id).delete()
+        db.session.query(ApiToken).where(ApiToken.id == api_key_id).delete()
         db.session.commit()
 
         return {"result": "success"}, 204

@@ -36,7 +36,7 @@ class StreamProcessor(ABC):
             reachable_node_ids: list[str] = []
             unreachable_first_node_ids: list[str] = []
             if finished_node_id not in self.graph.edge_mapping:
-                logger.warning(f"node {finished_node_id} has no edge mapping")
+                logger.warning("node %s has no edge mapping", finished_node_id)
                 return
             for edge in self.graph.edge_mapping[finished_node_id]:
                 if (
@@ -60,12 +60,21 @@ class StreamProcessor(ABC):
                     ids = self._fetch_node_ids_in_reachable_branch(edge.target_node_id, run_result.edge_source_handle)
                     reachable_node_ids.extend(ids)
                 else:
+                    # if the condition edge in parallel, and the target node is not in parallel, we should not remove it
+                    # Issues: #13626
+                    if (
+                        finished_node_id in self.graph.node_parallel_mapping
+                        and edge.target_node_id not in self.graph.node_parallel_mapping
+                    ):
+                        continue
                     unreachable_first_node_ids.append(edge.target_node_id)
-
+            unreachable_first_node_ids = list(set(unreachable_first_node_ids) - set(reachable_node_ids))
             for node_id in unreachable_first_node_ids:
                 self._remove_node_ids_in_unreachable_branch(node_id, reachable_node_ids)
 
     def _fetch_node_ids_in_reachable_branch(self, node_id: str, branch_identify: Optional[str] = None) -> list[str]:
+        if node_id not in self.rest_node_ids:
+            self.rest_node_ids.append(node_id)
         node_ids = []
         for edge in self.graph.edge_mapping.get(node_id, []):
             if edge.target_node_id == self.graph.root_node_id:
@@ -87,7 +96,12 @@ class StreamProcessor(ABC):
         if node_id not in self.rest_node_ids:
             return
 
+        if node_id in reachable_node_ids:
+            return
+
         self.rest_node_ids.remove(node_id)
+        self.rest_node_ids.extend(set(reachable_node_ids) - set(self.rest_node_ids))
+
         for edge in self.graph.edge_mapping.get(node_id, []):
             if edge.target_node_id in reachable_node_ids:
                 continue

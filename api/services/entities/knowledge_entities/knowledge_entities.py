@@ -1,17 +1,10 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Literal, Optional
 
 from pydantic import BaseModel
 
 
-class SegmentUpdateEntity(BaseModel):
-    content: str
-    answer: Optional[str] = None
-    keywords: Optional[list[str]] = None
-    enabled: Optional[bool] = None
-
-
-class ParentMode(str, Enum):
+class ParentMode(StrEnum):
     FULL_DOC = "full-doc"
     PARAGRAPH = "paragraph"
 
@@ -84,20 +77,43 @@ class RerankingModel(BaseModel):
     reranking_model_name: Optional[str] = None
 
 
+class WeightVectorSetting(BaseModel):
+    vector_weight: float
+    embedding_provider_name: str
+    embedding_model_name: str
+
+
+class WeightKeywordSetting(BaseModel):
+    keyword_weight: float
+
+
+class WeightModel(BaseModel):
+    weight_type: Optional[Literal["semantic_first", "keyword_first", "customized"]] = None
+    vector_setting: Optional[WeightVectorSetting] = None
+    keyword_setting: Optional[WeightKeywordSetting] = None
+
+
 class RetrievalModel(BaseModel):
-    search_method: Literal["hybrid_search", "semantic_search", "full_text_search"]
+    search_method: Literal["hybrid_search", "semantic_search", "full_text_search", "keyword_search"]
     reranking_enable: bool
     reranking_model: Optional[RerankingModel] = None
+    reranking_mode: Optional[str] = None
     top_k: int
     score_threshold_enabled: bool
     score_threshold: Optional[float] = None
+    weights: Optional[WeightModel] = None
+
+
+class MetaDataConfig(BaseModel):
+    doc_type: str
+    doc_metadata: dict
 
 
 class KnowledgeConfig(BaseModel):
     original_document_id: Optional[str] = None
     duplicate: bool = True
     indexing_technique: Literal["high_quality", "economy"]
-    data_source: DataSource
+    data_source: Optional[DataSource] = None
     process_rule: Optional[ProcessRule] = None
     retrieval_model: Optional[RetrievalModel] = None
     doc_form: str = "text_model"
@@ -118,3 +134,32 @@ class SegmentUpdateArgs(BaseModel):
 class ChildChunkUpdateArgs(BaseModel):
     id: Optional[str] = None
     content: str
+
+
+class MetadataArgs(BaseModel):
+    type: Literal["string", "number", "time"]
+    name: str
+
+
+class MetadataUpdateArgs(BaseModel):
+    name: str
+    value: Optional[str | int | float] = None
+
+
+class MetadataDetail(BaseModel):
+    id: str
+    name: str
+    value: Optional[str | int | float] = None
+
+
+class DocumentMetadataOperation(BaseModel):
+    document_id: str
+    metadata_list: list[MetadataDetail]
+
+
+class MetadataOperationData(BaseModel):
+    """
+    Metadata operation data
+    """
+
+    operation_data: list[DocumentMetadataOperation]

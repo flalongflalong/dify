@@ -53,7 +53,7 @@ class MyScaleVector(BaseVector):
         return self.add_texts(documents=texts, embeddings=embeddings, **kwargs)
 
     def _create_collection(self, dimension: int):
-        logging.info(f"create MyScale collection {self._collection_name} with dimension {dimension}")
+        logging.info("create MyScale collection %s with dimension %s", self._collection_name, dimension)
         self._client.command(f"CREATE DATABASE IF NOT EXISTS {self._config.database}")
         fts_params = f"('{self._config.fts_params}')" if self._config.fts_params else ""
         sql = f"""
@@ -125,12 +125,18 @@ class MyScaleVector(BaseVector):
 
     def _search(self, dist: str, order: SortOrder, **kwargs: Any) -> list[Document]:
         top_k = kwargs.get("top_k", 4)
+        if not isinstance(top_k, int) or top_k <= 0:
+            raise ValueError("top_k must be a positive integer")
         score_threshold = float(kwargs.get("score_threshold") or 0.0)
         where_str = (
             f"WHERE dist < {1 - score_threshold}"
             if self._metric.upper() == "COSINE" and order == SortOrder.ASC and score_threshold > 0.0
             else ""
         )
+        document_ids_filter = kwargs.get("document_ids_filter")
+        if document_ids_filter:
+            document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
+            where_str = f"{where_str} AND metadata['document_id'] in ({document_ids})"
         sql = f"""
             SELECT text, vector, metadata, {dist} as dist FROM {self._config.database}.{self._collection_name}
             {where_str} ORDER BY dist {order.value} LIMIT {top_k}
@@ -145,7 +151,7 @@ class MyScaleVector(BaseVector):
                 for r in self._client.query(sql).named_results()
             ]
         except Exception as e:
-            logging.exception(f"\033[91m\033[1m{type(e)}\033[0m \033[95m{str(e)}\033[0m")  # noqa:TRY401
+            logging.exception("\033[91m\033[1m%s\033[0m \033[95m%s\033[0m", type(e), str(e))  # noqa:TRY401
             return []
 
     def delete(self) -> None:

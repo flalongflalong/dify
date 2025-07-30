@@ -198,6 +198,33 @@ const translation = {
         },
       },
     },
+    fileUpload: {
+      title: 'Dosya Yükleme',
+      description: 'Sohbet giriş kutusu görüntü, belge ve diğer dosyaların yüklenmesine izin verir.',
+      supportedTypes: 'Desteklenen Dosya Türleri',
+      numberLimit: 'Maksimum yükleme sayısı',
+      modalTitle: 'Dosya Yükleme Ayarları',
+    },
+    imageUpload: {
+      title: 'Görüntü Yükleme',
+      description: 'Görüntü yüklemeye izin verir.',
+      supportedTypes: 'Desteklenen Dosya Türleri',
+      numberLimit: 'Maksimum yükleme sayısı',
+      modalTitle: 'Görüntü Yükleme Ayarları',
+    },
+    bar: {
+      empty: 'Web uygulaması kullanıcı deneyimini geliştirmek için özellikleri etkinleştirin',
+      enableText: 'Özellikler Etkinleştirildi',
+      manage: 'Yönet',
+    },
+    documentUpload: {
+      title: 'Belge',
+      description: 'Belgeyi etkinleştirmek modelin belgeleri almasına ve bunlar hakkında sorulara cevap vermesine izin verir.',
+    },
+    audioUpload: {
+      title: 'Ses',
+      description: 'Sesi etkinleştirmek modelin transkripsiyon ve analiz için ses dosyalarını işlemesine izin verir.',
+    },
   },
   generate: {
     title: 'Prompt Oluşturucu',
@@ -329,6 +356,9 @@ const translation = {
       atLeastOneOption: 'En az bir seçenek gereklidir',
       optionRepeat: 'Yinelenen seçenekler var',
     },
+    defaultValue: 'Varsayılan değer',
+    noDefaultValue: 'Varsayılan değer yok',
+    selectDefaultValue: 'Varsayılan değer seç',
   },
   vision: {
     name: 'Görüş',
@@ -368,6 +398,7 @@ const translation = {
     writeOpener: 'Başlangıç mesajı yaz',
     placeholder: 'Başlangıç mesajınızı buraya yazın, değişkenler kullanabilirsiniz, örneğin {{variable}} yazmayı deneyin.',
     openingQuestion: 'Açılış Soruları',
+    openingQuestionPlaceholder: 'Değişkenler kullanabilirsiniz, {{variable}} yazmayı deneyin.',
     noDataPlaceHolder:
       'Kullanıcı ile konuşmayı başlatmak, AI\'ın konuşma uygulamalarında onlarla daha yakın bir bağlantı kurmasına yardımcı olabilir.',
     varTip: 'Değişkenler kullanabilirsiniz, örneğin {{variable}} yazmayı deneyin',

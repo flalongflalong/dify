@@ -29,6 +29,8 @@ const translation = {
       delete: 'Sil',
       enableWarning: 'Arşivlenmiş dosya etkinleştirilemez',
       sync: 'Senkronize et',
+      pause: 'Duraklat',
+      resume: 'Devam Et',
     },
     index: {
       enable: 'Etkinleştir',
@@ -132,7 +134,7 @@ const translation = {
         language: 'Dil',
         authorPublisher: 'Yazar/Yayıncı',
         publishDate: 'Yayın Tarihi',
-        topicsKeywords: 'Konular/Anahtar Kelimeler',
+        topicKeywords: 'Konular/Anahtar Kelimeler',
         description: 'Açıklama',
       },
       paper: {
@@ -387,7 +389,10 @@ const translation = {
     searchResults_zero: 'SONUÇ',
     chunks_other: 'Parçalar',
     editedAt: 'Şurada düzenlendi:',
+    dateTimeFormat: 'MM/DD/YYYY h:mm',
     addChildChunk: 'Alt Parça Ekle',
+    keywordDuplicate: 'Anahtar kelime zaten var',
+    keywordEmpty: 'Anahtar kelime boş olamaz',
   },
 }
 

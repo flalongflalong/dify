@@ -5,7 +5,6 @@ from .account import (
     InvitationCode,
     Tenant,
     TenantAccountJoin,
-    TenantAccountJoinRole,
     TenantAccountRole,
     TenantStatus,
 )
@@ -28,13 +27,14 @@ from .dataset import (
     Whitelist,
 )
 from .engine import db
-from .enums import CreatedByRole, UserFrom, WorkflowRunTriggeredFrom
+from .enums import CreatorUserRole, UserFrom, WorkflowRunTriggeredFrom
 from .model import (
     ApiRequest,
     ApiToken,
     App,
     AppAnnotationHitHistory,
     AppAnnotationSetting,
+    AppMCPServer,
     AppMode,
     AppModelConfig,
     Conversation,
@@ -73,7 +73,6 @@ from .task import CeleryTask, CeleryTaskSet
 from .tools import (
     ApiToolProvider,
     BuiltinToolProvider,
-    PublishedAppTool,
     ToolConversationVariables,
     ToolFile,
     ToolLabelBinding,
@@ -86,11 +85,9 @@ from .workflow import (
     Workflow,
     WorkflowAppLog,
     WorkflowAppLogCreatedFrom,
-    WorkflowNodeExecution,
-    WorkflowNodeExecutionStatus,
+    WorkflowNodeExecutionModel,
     WorkflowNodeExecutionTriggeredFrom,
     WorkflowRun,
-    WorkflowRunStatus,
     WorkflowType,
 )
 
@@ -102,19 +99,20 @@ __all__ = [
     "AccountStatus",
     "ApiRequest",
     "ApiToken",
-    "ApiToolProvider",  # Added
+    "ApiToolProvider",
     "App",
     "AppAnnotationHitHistory",
     "AppAnnotationSetting",
     "AppDatasetJoin",
+    "AppMCPServer",  # Added
     "AppMode",
     "AppModelConfig",
-    "BuiltinToolProvider",  # Added
+    "BuiltinToolProvider",
     "CeleryTask",
     "CeleryTaskSet",
     "Conversation",
     "ConversationVariable",
-    "CreatedByRole",
+    "CreatorUserRole",
     "DataSourceApiKeyAuthBinding",
     "DataSourceOauthBinding",
     "Dataset",
@@ -150,7 +148,6 @@ __all__ = [
     "ProviderOrder",
     "ProviderQuotaType",
     "ProviderType",
-    "PublishedAppTool",
     "RecommendedApp",
     "SavedMessage",
     "Site",
@@ -158,7 +155,6 @@ __all__ = [
     "TagBinding",
     "Tenant",
     "TenantAccountJoin",
-    "TenantAccountJoinRole",
     "TenantAccountRole",
     "TenantDefaultModel",
     "TenantPreferredModelProvider",
@@ -175,11 +171,9 @@ __all__ = [
     "Workflow",
     "WorkflowAppLog",
     "WorkflowAppLogCreatedFrom",
-    "WorkflowNodeExecution",
-    "WorkflowNodeExecutionStatus",
+    "WorkflowNodeExecutionModel",
     "WorkflowNodeExecutionTriggeredFrom",
     "WorkflowRun",
-    "WorkflowRunStatus",
     "WorkflowRunTriggeredFrom",
     "WorkflowToolProvider",
     "WorkflowType",

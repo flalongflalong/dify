@@ -1,7 +1,8 @@
+import os
 from typing import Any, Literal, Optional
-from urllib.parse import quote_plus
+from urllib.parse import parse_qsl, quote_plus
 
-from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt, computed_field
+from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, computed_field
 from pydantic_settings import BaseSettings
 
 from .cache.redis_config import RedisConfig
@@ -21,20 +22,25 @@ from .vdb.baidu_vector_config import BaiduVectorDBConfig
 from .vdb.chroma_config import ChromaConfig
 from .vdb.couchbase_config import CouchbaseConfig
 from .vdb.elasticsearch_config import ElasticsearchConfig
+from .vdb.huawei_cloud_config import HuaweiCloudConfig
 from .vdb.lindorm_config import LindormConfig
+from .vdb.matrixone_config import MatrixoneConfig
 from .vdb.milvus_config import MilvusConfig
 from .vdb.myscale_config import MyScaleConfig
 from .vdb.oceanbase_config import OceanBaseVectorConfig
+from .vdb.opengauss_config import OpenGaussConfig
 from .vdb.opensearch_config import OpenSearchConfig
 from .vdb.oracle_config import OracleConfig
 from .vdb.pgvector_config import PGVectorConfig
 from .vdb.pgvectors_config import PGVectoRSConfig
 from .vdb.qdrant_config import QdrantConfig
 from .vdb.relyt_config import RelytConfig
+from .vdb.tablestore_config import TableStoreConfig
 from .vdb.tencent_vector_config import TencentVectorDBConfig
 from .vdb.tidb_on_qdrant_config import TidbOnQdrantConfig
 from .vdb.tidb_vector_config import TiDBVectorConfig
 from .vdb.upstash_config import UpstashConfig
+from .vdb.vastbase_vector_config import VastbaseVectorConfig
 from .vdb.vikingdb_config import VikingDBConfig
 from .vdb.weaviate_config import WeaviateConfig
 
@@ -77,6 +83,11 @@ class VectorStoreConfig(BaseSettings):
     VECTOR_STORE_WHITELIST_ENABLE: Optional[bool] = Field(
         description="Enable whitelist for vector store.",
         default=False,
+    )
+
+    VECTOR_INDEX_NAME_PREFIX: Optional[str] = Field(
+        description="Prefix used to create collection name in vector database",
+        default="Vector_index",
     )
 
 
@@ -156,6 +167,11 @@ class DatabaseConfig(BaseSettings):
         default=3600,
     )
 
+    SQLALCHEMY_POOL_USE_LIFO: bool = Field(
+        description="If True, SQLAlchemy will use last-in-first-out way to retrieve connections from pool.",
+        default=False,
+    )
+
     SQLALCHEMY_POOL_PRE_PING: bool = Field(
         description="If True, enables connection pool pre-ping feature to check connections.",
         default=False,
@@ -166,21 +182,41 @@ class DatabaseConfig(BaseSettings):
         default=False,
     )
 
-    @computed_field
+    RETRIEVAL_SERVICE_EXECUTORS: NonNegativeInt = Field(
+        description="Number of processes for the retrieval service, default to CPU cores.",
+        default=os.cpu_count() or 1,
+    )
+
+    @computed_field  # type: ignore[misc]
+    @property
     def SQLALCHEMY_ENGINE_OPTIONS(self) -> dict[str, Any]:
+        # Parse DB_EXTRAS for 'options'
+        db_extras_dict = dict(parse_qsl(self.DB_EXTRAS))
+        options = db_extras_dict.get("options", "")
+        # Always include timezone
+        timezone_opt = "-c timezone=UTC"
+        if options:
+            # Merge user options and timezone
+            merged_options = f"{options} {timezone_opt}"
+        else:
+            merged_options = timezone_opt
+
+        connect_args = {"options": merged_options}
+
         return {
             "pool_size": self.SQLALCHEMY_POOL_SIZE,
             "max_overflow": self.SQLALCHEMY_MAX_OVERFLOW,
             "pool_recycle": self.SQLALCHEMY_POOL_RECYCLE,
             "pool_pre_ping": self.SQLALCHEMY_POOL_PRE_PING,
-            "connect_args": {"options": "-c timezone=UTC"},
+            "connect_args": connect_args,
+            "pool_use_lifo": self.SQLALCHEMY_POOL_USE_LIFO,
         }
 
 
 class CeleryConfig(DatabaseConfig):
     CELERY_BACKEND: str = Field(
         description="Backend for Celery task results. Options: 'database', 'redis'.",
-        default="database",
+        default="redis",
     )
 
     CELERY_BROKER_URL: Optional[str] = Field(
@@ -198,6 +234,10 @@ class CeleryConfig(DatabaseConfig):
         default=None,
     )
 
+    CELERY_SENTINEL_PASSWORD: Optional[str] = Field(
+        description="Password of the Redis Sentinel master.",
+        default=None,
+    )
     CELERY_SENTINEL_SOCKET_TIMEOUT: Optional[PositiveFloat] = Field(
         description="Timeout for Redis Sentinel socket operations in seconds.",
         default=0.1,
@@ -205,11 +245,7 @@ class CeleryConfig(DatabaseConfig):
 
     @computed_field
     def CELERY_RESULT_BACKEND(self) -> str | None:
-        return (
-            "db+{}".format(self.SQLALCHEMY_DATABASE_URI)
-            if self.CELERY_BACKEND == "database"
-            else self.CELERY_BROKER_URL
-        )
+        return f"db+{self.SQLALCHEMY_DATABASE_URI}" if self.CELERY_BACKEND == "database" else self.CELERY_BROKER_URL
 
     @property
     def BROKER_USE_SSL(self) -> bool:
@@ -229,6 +265,25 @@ class InternalTestConfig(BaseSettings):
     AWS_ACCESS_KEY_ID: Optional[str] = Field(
         description="Internal test AWS access key ID",
         default=None,
+    )
+
+
+class DatasetQueueMonitorConfig(BaseSettings):
+    """
+    Configuration settings for Dataset Queue Monitor
+    """
+
+    QUEUE_MONITOR_THRESHOLD: Optional[NonNegativeInt] = Field(
+        description="Threshold for dataset queue monitor",
+        default=200,
+    )
+    QUEUE_MONITOR_ALERT_EMAILS: Optional[str] = Field(
+        description="Emails for dataset queue monitor alert, separated by commas",
+        default=None,
+    )
+    QUEUE_MONITOR_INTERVAL: Optional[NonNegativeFloat] = Field(
+        description="Interval for dataset queue monitor in minutes",
+        default=30,
     )
 
 
@@ -255,11 +310,13 @@ class MiddlewareConfig(
     VectorStoreConfig,
     AnalyticdbConfig,
     ChromaConfig,
+    HuaweiCloudConfig,
     MilvusConfig,
     MyScaleConfig,
     OpenSearchConfig,
     OracleConfig,
     PGVectorConfig,
+    VastbaseVectorConfig,
     PGVectoRSConfig,
     QdrantConfig,
     RelytConfig,
@@ -275,5 +332,9 @@ class MiddlewareConfig(
     LindormConfig,
     OceanBaseVectorConfig,
     BaiduVectorDBConfig,
+    OpenGaussConfig,
+    TableStoreConfig,
+    DatasetQueueMonitorConfig,
+    MatrixoneConfig,
 ):
     pass

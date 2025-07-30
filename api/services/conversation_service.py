@@ -1,5 +1,4 @@
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
 from typing import Optional, Union
 
 from sqlalchemy import asc, desc, func, or_, select
@@ -8,10 +7,16 @@ from sqlalchemy.orm import Session
 from core.app.entities.app_invoke_entities import InvokeFrom
 from core.llm_generator.llm_generator import LLMGenerator
 from extensions.ext_database import db
+from libs.datetime_utils import naive_utc_now
 from libs.infinite_scroll_pagination import InfiniteScrollPagination
+from models import ConversationVariable
 from models.account import Account
 from models.model import App, Conversation, EndUser, Message
-from services.errors.conversation import ConversationNotExistsError, LastConversationNotExistsError
+from services.errors.conversation import (
+    ConversationNotExistsError,
+    ConversationVariableNotExistsError,
+    LastConversationNotExistsError,
+)
 from services.errors.message import MessageNotExistsError
 
 
@@ -41,9 +46,11 @@ class ConversationService:
             Conversation.from_account_id == (user.id if isinstance(user, Account) else None),
             or_(Conversation.invoke_from.is_(None), Conversation.invoke_from == invoke_from.value),
         )
-        if include_ids is not None:
+        # Check if include_ids is not None and not empty to avoid WHERE false condition
+        if include_ids is not None and len(include_ids) > 0:
             stmt = stmt.where(Conversation.id.in_(include_ids))
-        if exclude_ids is not None:
+        # Check if exclude_ids is not None and not empty to avoid WHERE false condition
+        if exclude_ids is not None and len(exclude_ids) > 0:
             stmt = stmt.where(~Conversation.id.in_(exclude_ids))
 
         # define sort fields and directions
@@ -108,7 +115,7 @@ class ConversationService:
             return cls.auto_generate_name(app_model, conversation)
         else:
             conversation.name = name
-            conversation.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            conversation.updated_at = naive_utc_now()
             db.session.commit()
 
         return conversation
@@ -118,7 +125,7 @@ class ConversationService:
         # get conversation first message
         message = (
             db.session.query(Message)
-            .filter(Message.app_id == app_model.id, Message.conversation_id == conversation.id)
+            .where(Message.app_id == app_model.id, Message.conversation_id == conversation.id)
             .order_by(Message.created_at.asc())
             .first()
         )
@@ -143,7 +150,7 @@ class ConversationService:
     def get_conversation(cls, app_model: App, conversation_id: str, user: Optional[Union[Account, EndUser]]):
         conversation = (
             db.session.query(Conversation)
-            .filter(
+            .where(
                 Conversation.id == conversation_id,
                 Conversation.app_id == app_model.id,
                 Conversation.from_source == ("api" if isinstance(user, EndUser) else "console"),
@@ -164,5 +171,52 @@ class ConversationService:
         conversation = cls.get_conversation(app_model, conversation_id, user)
 
         conversation.is_deleted = True
-        conversation.updated_at = datetime.now(UTC).replace(tzinfo=None)
+        conversation.updated_at = naive_utc_now()
         db.session.commit()
+
+    @classmethod
+    def get_conversational_variable(
+        cls,
+        app_model: App,
+        conversation_id: str,
+        user: Optional[Union[Account, EndUser]],
+        limit: int,
+        last_id: Optional[str],
+    ) -> InfiniteScrollPagination:
+        conversation = cls.get_conversation(app_model, conversation_id, user)
+
+        stmt = (
+            select(ConversationVariable)
+            .where(ConversationVariable.app_id == app_model.id)
+            .where(ConversationVariable.conversation_id == conversation.id)
+            .order_by(ConversationVariable.created_at)
+        )
+
+        with Session(db.engine) as session:
+            if last_id:
+                last_variable = session.scalar(stmt.where(ConversationVariable.id == last_id))
+                if not last_variable:
+                    raise ConversationVariableNotExistsError()
+
+                # Filter for variables created after the last_id
+                stmt = stmt.where(ConversationVariable.created_at > last_variable.created_at)
+
+            # Apply limit to query
+            query_stmt = stmt.limit(limit)  # Get one extra to check if there are more
+            rows = session.scalars(query_stmt).all()
+
+        has_more = False
+        if len(rows) > limit:
+            has_more = True
+            rows = rows[:limit]  # Remove the extra item
+
+        variables = [
+            {
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+                **row.to_variable().model_dump(),
+            }
+            for row in rows
+        ]
+
+        return InfiniteScrollPagination(variables, limit, has_more)

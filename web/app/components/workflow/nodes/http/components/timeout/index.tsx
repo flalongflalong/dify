@@ -20,23 +20,33 @@ const InputField: FC<{
   description: string
   placeholder: string
   value?: number
-  onChange: (value: number) => void
+  onChange: (value: number | undefined) => void
   readOnly?: boolean
   min: number
   max: number
 }> = ({ title, description, placeholder, value, onChange, readOnly, min, max }) => {
   return (
     <div className="space-y-1">
-      <div className="flex items-center h-[18px] space-x-2">
-        <span className="text-[13px] font-medium text-gray-900">{title}</span>
-        <span className="text-xs font-normal text-gray-500">{description}</span>
+      <div className="flex h-[18px] items-center space-x-2">
+        <span className="text-[13px] font-medium text-text-primary">{title}</span>
+        <span className="text-xs font-normal text-text-tertiary">{description}</span>
       </div>
       <Input
         type='number'
         value={value}
         onChange={(e) => {
-          const value = Math.max(min, Math.min(max, parseInt(e.target.value, 10)))
-          onChange(value)
+          const inputValue = e.target.value
+          if (inputValue === '') {
+            // When user clears the input, set to undefined to let backend use default values
+            onChange(undefined)
+          }
+          else {
+            const parsedValue = Number.parseInt(inputValue, 10)
+            if (!Number.isNaN(parsedValue)) {
+              const value = Math.max(min, Math.min(max, parsedValue))
+              onChange(value)
+            }
+          }
         }}
         placeholder={placeholder}
         readOnly={readOnly}
